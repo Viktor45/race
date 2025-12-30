@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>DoH Latency Test</title>
+		<meta
+			name="description"
+			content="Test DNS-over-HTTPS server response times directly in your browser."
+		/>
+
+		<!-- PWA -->
+		<link rel="manifest" href="manifest.json" />
+		<link rel="apple-touch-icon" href="icon-192.png" />
+		<meta name="theme-color" content="#3b82f6" />
+
+		<!-- Material Symbols (optional) -->
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+		/>
+
+		<link rel="stylesheet" href="style.css" />
+	</head>
+	<body>
+		<main>
+			<header>
+				<h1>DoH Latency Tester</h1>
+				<p>Measure network latency and DNS resolution of DoH servers</p>
+			</header>
+
+			<div class="file-inputs">
+				<label>
+					DoH Servers (one per line, e.g. https://1.1.1.1/dns-query)
+					<input type="file" id="serverFile" accept=".txt" />
+				</label>
+
+				<label>
+					Domain to test
+					<input
+						type="text"
+						id="singleDomain"
+						placeholder="example.com"
+						value="example.com"
+					/>
+				</label>
+
+				<label>
+					Or upload domains.txt (one domain per line)
+					<input type="file" id="domainFile" accept=".txt" />
+				</label>
+			</div>
+
+			<div class="controls">
+				<button id="startBtn">Start Test</button>
+				<button id="cancelBtn" class="hidden">Cancel</button>
+				<button id="exportBtn" class="hidden">Export CSV</button>
+			</div>
+
+			<div class="progress-group hidden">
+				<progress id="progressBar" value="0" max="100"></progress>
+				<div id="progressText">0 / 0 servers tested</div>
+			</div>
+
+			<div id="results" class="hidden">
+				<h2>Results</h2>
+				<ul id="resultsList" class="results-list"></ul>
+			</div>
+		</main>
+
+		<script src="script.js"></script>
+	</body>
+</html>
