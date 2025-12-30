@@ -447,7 +447,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 })
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-	const headers = ['Server URL', 'Network Latency (ms)', 'DNS Works', 'Status']
+	const headers = ['Server URL', 'Network Latency (ms)', 'NO CORS', 'Status']
 	const rows = testResults.map(r => {
 		if (r.error) {
 			return `"${r.url.replace(/"/g, '""')}",,,"${r.error.replace(/"/g, '""')}"`
