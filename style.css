@@ -156,6 +156,33 @@ header p {
 	position: relative;
 }
 
+.settings-btn {
+	background: #6b7280;
+	padding: 0.5rem 1rem;
+	font-size: 0.95rem;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.settings-btn:hover:not(:disabled) {
+	background: #4b5563;
+	transform: none;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settings-btn .material-symbols-outlined {
+	font-size: 1.2rem;
+	font-variation-settings:
+		'FILL' 0,
+		'wght' 400,
+		'GRAD' 0,
+		'opsz' 24;
+}
+
+#settingsForm {
+	margin-bottom: var(--space-lg);
+}
+
 button {
 	padding: 0.75rem 1.5rem;
 	font-size: 1rem;

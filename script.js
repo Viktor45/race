@@ -522,4 +522,19 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 	downloadCSV('doh-latency-results.csv', csv)
 })
 
+document.getElementById('toggleSettingsBtn').addEventListener('click', () => {
+	const form = document.getElementById('settingsForm')
+	const btn = document.getElementById('toggleSettingsBtn')
+	const isHidden = form.classList.contains('hidden')
+
+	if (isHidden) {
+		form.classList.remove('hidden')
+		btn.innerHTML = '<span class="material-symbols-outlined">close</span> Close'
+	} else {
+		form.classList.add('hidden')
+		btn.innerHTML =
+			'<span class="material-symbols-outlined">settings</span> Settings'
+	}
+})
+
 init().catch(console.error)
