@@ -53,14 +53,22 @@ function fetchWithTimeout(url, options, timeout = TIMEOUT_MS, signal = null) {
 }
 
 async function testProvider(provider, signal = null) {
+	const start = performance.now()
 	let connectivityTime = null
+	let networkSuccess = false
+	let dnsWorks = false
+
 	try {
-		const start = performance.now()
 		await fetchWithTimeout(provider.url, { method: 'HEAD' }, TIMEOUT_MS, signal)
 		connectivityTime = performance.now() - start
+		networkSuccess = true
 	} catch (err) {
+		connectivityTime = performance.now() - start
+		networkSuccess = false
+	}
+
+	if (!networkSuccess) {
 		try {
-			const start = performance.now()
 			await fetchWithTimeout(
 				provider.url,
 				{ method: 'GET' },
@@ -68,45 +76,51 @@ async function testProvider(provider, signal = null) {
 				signal,
 			)
 			connectivityTime = performance.now() - start
-		} catch (finalErr) {
-			return { url: provider.url, error: 'Network unreachable' }
+			networkSuccess = true
+		} catch (err) {
+			connectivityTime = performance.now() - start
+			networkSuccess = false
 		}
 	}
 
-	let dnsWorks = false
-	const testDomain = currentDomains[0] || 'example.com'
-
-	try {
-		if (provider.type === 'json') {
-			const url = `${provider.url}?name=${encodeURIComponent(testDomain)}&type=A`
-			const res = await fetchWithTimeout(url, {}, TIMEOUT_MS, signal)
-			const contentType = (res.headers.get('content-type') || '').toLowerCase()
-			if (!contentType.includes('application/json'))
-				throw new Error('Invalid JSON')
-			if (!res.ok) throw new Error(`HTTP ${res.status}`)
-			const data = await res.json()
-			if (data.Status !== 0) throw new Error('DNS error')
-			dnsWorks = true
-		} else {
-			const packet = makeDnsPacket(testDomain)
-			const res = await fetchWithTimeout(
-				provider.url,
-				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/dns-message' },
-					body: packet,
-				},
-				TIMEOUT_MS,
-				signal,
-			)
-			const contentType = (res.headers.get('content-type') || '').toLowerCase()
-			if (!contentType.includes('application/dns-message'))
-				throw new Error('Invalid DoH')
-			if (!res.ok) throw new Error(`HTTP ${res.status}`)
-			dnsWorks = true
+	if (networkSuccess) {
+		const testDomain = currentDomains[0] || 'example.com'
+		try {
+			if (provider.type === 'json') {
+				const url = `${provider.url}?name=${encodeURIComponent(testDomain)}&type=A`
+				const res = await fetchWithTimeout(url, {}, TIMEOUT_MS, signal)
+				const contentType = (
+					res.headers.get('content-type') || ''
+				).toLowerCase()
+				if (!contentType.includes('application/json'))
+					throw new Error('Invalid JSON')
+				if (!res.ok) throw new Error(`HTTP ${res.status}`)
+				const data = await res.json()
+				if (data.Status !== 0) throw new Error('DNS error')
+				dnsWorks = true
+			} else {
+				const packet = makeDnsPacket(testDomain)
+				const res = await fetchWithTimeout(
+					provider.url,
+					{
+						method: 'POST',
+						headers: { 'Content-Type': 'application/dns-message' },
+						body: packet,
+					},
+					TIMEOUT_MS,
+					signal,
+				)
+				const contentType = (
+					res.headers.get('content-type') || ''
+				).toLowerCase()
+				if (!contentType.includes('application/dns-message'))
+					throw new Error('Invalid DoH')
+				if (!res.ok) throw new Error(`HTTP ${res.status}`)
+				dnsWorks = true
+			}
+		} catch (err) {
+			dnsWorks = false
 		}
-	} catch (err) {
-		dnsWorks = false
 	}
 
 	return {
@@ -394,7 +408,9 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 						return result
 					})
 					.catch(err => {
-						if (err.name === 'AbortError') throw err
+						if (abortController.signal.aborted) {
+							throw err
+						}
 						const result = { url: provider.url, error: 'Test failed' }
 						testResults.push(result)
 						insertSortedResult(result)
@@ -416,7 +432,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 			if (abortController.signal.aborted) break
 		}
 	} catch (err) {
-		if (err.name !== 'AbortError') {
+		if (!abortController.signal.aborted) {
 			console.error('Test error:', err)
 		}
 	} finally {
