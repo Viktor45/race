@@ -2,7 +2,7 @@
 
 ## How to Report a Security Issue
 
-If you think you’ve found a security problem in **sub-filter**, please let us know right away!  
+If you think you’ve found a security problem in **race**, please let us know right away!  
 Use the official reporting page:  
 https://github.com/Viktor45/race/security/advisories/new
 
@@ -26,4 +26,4 @@ If we confirm a security issue, here’s what we’ll do:
   - The **previous minor version** (so more people can stay protected)
 - As soon as the fix is ready, we’ll release **new patched versions** for both
 
-Thank you for helping keep **sub-filter** safe for everyone!
+Thank you for helping keep **race** safe for everyone!
