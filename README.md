@@ -96,7 +96,7 @@ If no `servers.txt` is provided, the tool uses a curated list of **200+ public D
 | Styling     | CSS with native dark/light mode                            |
 | DNS Query   | RFC 8484-compliant (`POST` with `application/dns-message`) |
 | JSON API    | Google/Alibaba-style `/resolve`                            |
-| Concurrency | Batched execution (max 20 concurrent requests)             |
+| Concurrency | Batched execution (max 5 concurrent requests)              |
 | Output      | CSV export                                                 |
 
 ---
