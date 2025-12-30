@@ -18,7 +18,7 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
 	const url = new URL(event.request.url)
-	// Кэшируем только наши статические файлы
+
 	if (url.origin !== self.location.origin) return
 
 	event.respondWith(
