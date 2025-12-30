@@ -2,74 +2,118 @@
 
 Simple DoH Latency Tester
 
-A lightweight, client-side web tool for benchmarking DNS-over-HTTPS (DoH) and JSON-based DNS resolver services.
+> **Measure network latency and DNS resolution performance of public DoH resolvers — directly in your browser.**
 
-## Overview
+A fully client-side, privacy-respecting tool for benchmarking [DNS-over-HTTPS (DoH)](https://datatracker.ietf.org/doc/html/rfc8484) and JSON-based DNS services. No data leaves your browser. No tracking. No backend required.
 
-The **DoH Latency Tester** measures network responsiveness and DNS resolution capability of public DoH servers directly in the browser—without sending any data to external analytics or backend services.
+---
 
-It provides immediate visual feedback on:
-- **Network latency** to each resolver (via `HEAD`/`GET`).
-- **DNS functionality** (whether the server correctly resolves a given domain).
-- **Relative performance ranking** with color-coded, proportional progress bars.
+## ✨ Features
 
-All tests run locally; no server-side component is required.
+- **Dual-layer testing**  
+  - ✅ **Network latency**: `HEAD`/`GET` round-trip time to each resolver  
+  - ✅ **DNS resolution**: Validates correctness using your domain(s)
+- **Smart batching**  
+  Automatically processes servers in **batches of 5** to avoid browser throttling and respect public resolver resources.
+- **Real-time UI**  
+  Live-updating results with color-coded, proportional progress bars:
+  - 🟢 **Green** (≤ 50 ms): Excellent
+  - 🟡 **Yellow** (51–150 ms): Acceptable
+  - 🔴 **Red** (> 150 ms): Poor
+- **Flexible input**  
+  - Test a single domain (default: `example.com`)
+  - Or upload a `domains.txt` file for extended validation
+- **Zero dependencies**  
+  Pure HTML/CSS/JS — deploy anywhere: GitHub Pages, Netlify, local filesystem.
+- **Privacy by design**  
+  All logic runs in-browser. No telemetry. No analytics.
 
-## Key Features
+---
 
-- **Dual-layer testing**:  
-  1. **Primary**: Measures pure network round-trip time (RTT).  
-  2. **Secondary**: Validates DNS resolution correctness.
-- **Batch processing**: Automatically limits concurrent requests to **20 servers** to avoid browser throttling and respect public resolver resources.
-- **Real-time visualization**: Results update dynamically during the test.
-- **Flexible input**:  
-  - Test a single domain (default: `example.com`).  
-  - Upload a custom list (`domains.txt`) for extended validation.
-- **Professional UI**: Clean, responsive design with dark/light mode support.
-- **Privacy-safe**: Zero data leaves the user’s browser.
+## 🚀 Getting Started
 
-## Use Cases
+### 1. Clone or download this repository
 
-- Compare public DoH resolvers (Cloudflare, Google, Quad9, etc.).
-- Validate custom or private DoH endpoints.
-- Troubleshoot DNS resolution issues.
-- Benchmark network paths to DNS providers.
+```bash
+git clone https://github.com/viktor45/race.git
+cd race
+```
 
-## How to Use
+### 2. Open in browser
 
-1. **Prepare server list** (optional):  
-   Create a `servers.txt` file with one DoH URL per line (e.g., `https://1.1.1.1/dns-query` or `https://8.8.8.8/resolve`).  
-   If omitted, the tool uses a built-in default list.
+Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
 
-2. **Choose a domain to test**:  
-   - Enter a domain manually (e.g., `example.com`).  
-   - **Or** upload a `domains.txt` file (one domain per line) to test multiple domains (only the first is used for ranking).
+> 💡 **Hosting tip**: Deploy to [GitHub Pages](https) in seconds:
+> 1. Go to **Settings → Pages**
+> 2. Set source to **Deploy from a branch**
+> 3. Select `main` and `/root`
 
-3. **Start the test**:  
-   Click **Start Test**. Results appear in real time.
+---
 
-4. **Interpret results**:  
-   - **Left**: Full resolver URL.  
-   - **Right**: Network latency in milliseconds.  
-   - **Progress bar**:  
-     - **Green** (≤ 50 ms): Excellent.  
-     - **Yellow** (51–150 ms): Acceptable.  
-     - **Red** (> 150 ms): Poor.  
-   - Hover over latency to see DNS status (`✅ DNS OK` or `⚠️ DNS failed`).
+## 🧪 How to Use
 
-5. **Export data**:  
-   Click **Export CSV** to save results for further analysis.
+1. **(Optional)** Prepare a `servers.txt` file with DoH URLs (one per line):  
+   ```txt
+   https://1.1.1.1/dns-query
+   https://8.8.8.8/resolve
+   https://dns.google/dns-query
+   ```
 
-## Requirements
+2. **Choose a domain** to test:
+   - Enter manually (e.g., `example.com`)
+   - **Or** upload `domains.txt` (one domain per line)
 
-- A modern browser (Chrome, Firefox, Safari, Edge) with JavaScript enabled.
-- Internet access to reach public DoH servers.
-- CORS support (some corporate networks may block DoH requests).
+3. Click **Start Test**
 
-## Deployment
+4. **Interpret results**:
+   - **Left**: Resolver URL
+   - **Right**: Network latency (ms)
+   - **Progress bar**: Visual performance indicator
+   - **Tooltip**: Hover over latency to see DNS status (`✅ DNS OK` / `⚠️ DNS failed`)
 
-The application is **static** and can be:
-- Hosted on **GitHub Pages**, Netlify, Vercel, or any web server.
-- Run locally from the filesystem (via `file://`).
+5. **Export**: Click **Export CSV** to save results
 
-No installation or dependencies required.
+---
+
+## 📦 Built-In Resolver List
+
+If no `servers.txt` is provided, the tool uses a curated list of **200+ public DoH servers** from the [curl DoH wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS), including:
+
+- **Cloudflare** (`1.1.1.1`)
+- **Google** (`8.8.8.8`)
+- **Quad9** (`9.9.9.9`)
+- **AdGuard**, **NextDNS**, **ControlD**, **Mullvad**, and 150+ others
+
+> ✅ All entries support the standard `/dns-query` or `/resolve` endpoints.
+
+---
+
+## 📊 Technical Details
+
+| Component   | Technology                                                 |
+| ----------- | ---------------------------------------------------------- |
+| Frontend    | Vanilla JavaScript (ES6+)                                  |
+| Styling     | CSS with native dark/light mode                            |
+| DNS Query   | RFC 8484-compliant (`POST` with `application/dns-message`) |
+| JSON API    | Google/Alibaba-style `/resolve`                            |
+| Concurrency | Batched execution (max 20 concurrent requests)             |
+| Output      | CSV export                                                 |
+
+---
+
+## 📜 License
+
+This project is licensed under the **GPL-3.0 license** — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙌 Acknowledgements
+
+- Public DoH server list: [curl/curl Wiki — DNS-over-HTTPS](https://github.com/curl/curl/wiki/DNS-over-HTTPS)
+- Icons: [Material Symbols](https://fonts.google.com/icons?icon.set=Material+Symbols)
+- Inspiration: [dnsleaktest.com](https://dnsleaktest.com), [browserleaks.com](https://browserleaks.com)
+
+---
+
+> 🔒 **Your privacy matters. This tool never sends your data anywhere.**  
+> 🚀 **Test fast. Test fair. Test privately.**
