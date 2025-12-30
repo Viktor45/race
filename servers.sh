@@ -22,4 +22,6 @@ grep -oE 'https?://[^[:space:]|`<>"]*' "$MD_FILE" \
   | sed 's|/dns-query[^/[:space:]|`<>"]*|/dns-query|g' \
   | sort -u >servers.txt
 
+rm "$MD_FILE"
+
 echo "✅ DoH server URLs have been extracted to servers.txt"
