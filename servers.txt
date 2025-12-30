@@ -170,7 +170,6 @@ https://doh-01.spectrum.com/dns-query
 https://doh-02.spectrum.com/dns-query
 https://doh-own-recursion.nicolas-dorriere.fr/dns-query
 https://doh-random-upstream.nicolas-dorriere.fr/dns-query
-https://doh.aaaab3n.moe/dns-query-114514
 https://doh.angry.im/dns-query
 https://doh.archuser.org/dns-query
 https://doh.buzz/dns-query
