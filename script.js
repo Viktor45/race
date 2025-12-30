@@ -43,12 +43,34 @@ function makeDnsPacket(domain) {
 
 function fetchWithTimeout(url, options, timeout = TIMEOUT_MS, signal = null) {
 	const timeoutController = new AbortController()
+
+	const finalController = new AbortController()
+
+	// If an external signal is provided, forward its abort to finalController
+	const forwardAbort = () => finalController.abort()
+	if (signal) {
+		if (signal.aborted) forwardAbort()
+		else signal.addEventListener('abort', forwardAbort, { once: true })
+	}
+
+	// Forward timeout abort as well
 	const timeoutId = setTimeout(() => timeoutController.abort(), timeout)
-	const finalSignal = signal
-		? AbortSignal.any([signal, timeoutController.signal])
-		: timeoutController.signal
-	return fetch(url, { ...options, signal: finalSignal }).finally(() =>
-		clearTimeout(timeoutId),
+	if (timeoutController.signal.aborted) forwardAbort()
+	else
+		timeoutController.signal.addEventListener('abort', forwardAbort, {
+			once: true,
+		})
+
+	return fetch(url, { ...options, signal: finalController.signal }).finally(
+		() => {
+			clearTimeout(timeoutId)
+			try {
+				if (signal) signal.removeEventListener('abort', forwardAbort)
+			} catch (e) {}
+			try {
+				timeoutController.signal.removeEventListener('abort', forwardAbort)
+			} catch (e) {}
+		},
 	)
 }
 
@@ -195,16 +217,36 @@ function renderInitialResults() {
 	currentServers.forEach(provider => {
 		const li = document.createElement('li')
 		li.className = 'server-item'
-		li.dataset.min = Infinity
-		li.innerHTML = `
-      <div class="server-header">
-        <div class="server-url" title="${provider.url}">${provider.url}</div>
-        <div class="server-avg">Testing…</div>
-      </div>
-      <div class="server-bar-container">
-        <div class="server-bar" style="width: 0%; background: var(--bar-bg);"></div>
-      </div>
-    `
+		li.dataset.min = Infinity // unknown yet
+
+		const header = document.createElement('div')
+		header.className = 'server-header'
+
+		const urlEl = document.createElement('div')
+		urlEl.className = 'server-url'
+		urlEl.textContent = provider.url
+		urlEl.title = provider.url
+
+		const avgEl = document.createElement('div')
+		avgEl.className = 'server-avg'
+		avgEl.textContent = 'Testing…'
+
+		header.appendChild(urlEl)
+		header.appendChild(avgEl)
+
+		const barContainer = document.createElement('div')
+		barContainer.className = 'server-bar-container'
+
+		const bar = document.createElement('div')
+		bar.className = 'server-bar'
+		bar.style.width = '0%'
+		bar.style.background = 'var(--bar-bg)'
+
+		barContainer.appendChild(bar)
+
+		li.appendChild(header)
+		li.appendChild(barContainer)
+
 		resultsList.appendChild(li)
 	})
 }
@@ -212,36 +254,54 @@ function renderInitialResults() {
 function renderResultItem(result) {
 	const li = document.createElement('li')
 	li.className = 'server-item'
-	li.dataset.min = result.error ? Infinity : result.min
+	li.dataset.min = result.error ? Infinity : String(result.min)
 
+	const header = document.createElement('div')
+	header.className = 'server-header'
+
+	const urlEl = document.createElement('div')
+	urlEl.className = 'server-url'
+	urlEl.textContent = result.url
+	urlEl.title = result.url
+
+	const avgEl = document.createElement('div')
+	avgEl.className = 'server-avg'
 	if (result.error) {
-		li.innerHTML = `
-      <div class="server-header">
-        <div class="server-url" title="${result.url}">${result.url}</div>
-        <div class="server-avg error">${result.error}</div>
-      </div>
-      <div class="server-bar-container">
-        <div class="server-bar error" style="width: 0%;"></div>
-      </div>
-    `
+		avgEl.classList.add('error')
+		avgEl.textContent = result.error
 	} else {
+		const mainTime = result.avg
+		avgEl.textContent = `${mainTime.toFixed(1)} ms`
+		const dnsStatus = result.dnsWorks ? '✅ DNS OK' : '⚠️ DNS failed'
+		const titleText = `${dnsStatus}\nNetwork: ${mainTime.toFixed(1)} ms`
+		avgEl.title = titleText
+	}
+
+	header.appendChild(urlEl)
+	header.appendChild(avgEl)
+
+	const barContainer = document.createElement('div')
+	barContainer.className = 'server-bar-container'
+
+	const bar = document.createElement('div')
+	bar.className = 'server-bar'
+	bar.style.width = '0%'
+	if (result.error) {
+		bar.classList.add('error')
+	}
+
+	barContainer.appendChild(bar)
+
+	li.appendChild(header)
+	li.appendChild(barContainer)
+
+	// apply visual class for speed if available
+	if (!result.error) {
 		const mainTime = result.avg
 		let barClass = 'slow'
 		if (mainTime <= 50) barClass = 'fast'
 		else if (mainTime <= 150) barClass = 'medium'
-
-		const dnsStatus = result.dnsWorks ? '✅ DNS OK' : '⚠️ DNS failed'
-		const titleText = `${dnsStatus}\nNetwork: ${mainTime.toFixed(1)} ms`
-
-		li.innerHTML = `
-      <div class="server-header">
-        <div class="server-url" title="${result.url}">${result.url}</div>
-        <div class="server-avg" title="${titleText}">${mainTime.toFixed(1)} ms</div>
-      </div>
-      <div class="server-bar-container">
-        <div class="server-bar ${barClass}" style="width: 0%;"></div>
-      </div>
-    `
+		bar.classList.add(barClass)
 	}
 
 	return li
@@ -253,17 +313,19 @@ function insertSortedResult(result) {
 
 	let inserted = false
 	for (const li of resultsList.children) {
-		const otherMin = parseFloat(li.dataset.min)
-		if (!result.error && (result.min < otherMin || otherMin === Infinity)) {
-			resultsList.insertBefore(newLi, li)
-			inserted = true
-			break
+		const otherMin = Number(li.dataset.min)
+		const otherValue = Number.isFinite(otherMin) ? otherMin : Infinity
+		if (!result.error) {
+			const myMin = Number(result.min)
+			if (myMin < otherValue) {
+				resultsList.insertBefore(newLi, li)
+				inserted = true
+				break
+			}
 		}
 	}
 
-	if (!inserted) {
-		resultsList.appendChild(newLi)
-	}
+	if (!inserted) resultsList.appendChild(newLi)
 }
 
 function finalizePendingTests() {
