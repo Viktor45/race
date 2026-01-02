@@ -2,7 +2,7 @@
 	"name": "DoH Latency Tester",
 	"short_name": "DoH Test",
 	"description": "Test DNS-over-HTTPS server response times directly in your browser.",
-	"start_url": "/",
+	"start_url": "./",
 	"display": "standalone",
 	"background_color": "#ffffff",
 	"theme_color": "#0066ff",
