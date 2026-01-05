@@ -20,8 +20,6 @@ Fixes #
 
 ## Checklist
 
-- [ ] I have performed a self-code review of my changes  
-- [ ] I have updated the documentation accordingly (where applicable)  
+- [ ] I have performed a self-code review of my changes
+- [ ] I have updated the documentation accordingly (where applicable)
 - [ ] I have tested the proposed changes locally or in another verified environment
-
-

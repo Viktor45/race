@@ -10,8 +10,8 @@ A fully client-side, privacy-respecting tool for benchmarking [DNS-over-HTTPS (D
 
 ## ✨ Features
 
-- **Dual-layer testing**  
-  - ✅ **Network latency**: `HEAD`/`GET` round-trip time to each resolver  
+- **Dual-layer testing**
+  - ✅ **Network latency**: `HEAD`/`GET` round-trip time to each resolver
   - ✅ **DNS resolution**: Validates correctness using your domain(s)
 - **Smart batching**  
   Automatically processes servers in **batches of 5** to avoid browser throttling and respect public resolver resources.
@@ -20,7 +20,7 @@ A fully client-side, privacy-respecting tool for benchmarking [DNS-over-HTTPS (D
   - 🟢 **Green** (≤ 50 ms): Excellent
   - 🟡 **Yellow** (51–150 ms): Acceptable
   - 🔴 **Red** (> 150 ms): Poor
-- **Flexible input**  
+- **Flexible input**
   - Test a single domain (default: `example.com`)
   - Or upload a `domains.txt` file for extended validation
 - **Zero dependencies**  
@@ -44,6 +44,7 @@ cd race
 Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
 
 > 💡 **Hosting tip**: Deploy to [GitHub Pages](https) in seconds:
+>
 > 1. Go to **Settings → Pages**
 > 2. Set source to **Deploy from a branch**
 > 3. Select `main` and `/root`
@@ -52,7 +53,8 @@ Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
 
 ## 🧪 How to Use
 
-1. **(Optional)** Prepare a `servers.txt` file with DoH URLs (one per line):  
+1. **(Optional)** Prepare a `servers.txt` file with DoH URLs (one per line):
+
    ```txt
    https://1.1.1.1/dns-query
    https://8.8.8.8/resolve
