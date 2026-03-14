@@ -156,7 +156,7 @@ async function testProvider(provider, signal = null) {
 
 async function loadBuiltinServers() {
 	try {
-		const text = await fetch('servers.txt').then(r => r.text())
+		const text = await fetch('data/servers.txt').then(r => r.text())
 		const urls = parseList(text).filter(isValidUrl)
 		return urls.map(url => ({
 			url,

@@ -18,10 +18,10 @@ jobs:
           token: ${{ secrets.PAT_TOKEN }}
 
       - name: Make script executable
-        run: chmod +x ./servers.sh
+        run: chmod +x ./data/servers.sh
 
       - name: Run servers.sh to update servers.txt
-        run: ./servers.sh
+        run: ./data/servers.sh
 
       - name: Configure Git user
         run: |
@@ -30,7 +30,7 @@ jobs:
 
       - name: Commit and push if servers.txt changed
         run: |
-          git add servers.txt
+          git add ./data/servers.txt
           if ! git diff --cached --quiet; then
             git commit -m "chore: auto-update servers.txt from curl DoH wiki"
             git push

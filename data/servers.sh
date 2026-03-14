@@ -4,7 +4,7 @@
 # Source: https://raw.githubusercontent.com/wiki/curl/curl/DNS-over-HTTPS.md
 
 URL="https://raw.githubusercontent.com/wiki/curl/curl/DNS-over-HTTPS.md"
-MD_FILE="servers.md"
+MD_FILE="./data/servers.md"
 
 echo "📥 Downloading DoH server list from curl wiki..."
 if ! curl -fsSL "$URL" -o "$MD_FILE"; then
@@ -20,7 +20,7 @@ echo "🔍 Extracting and processing URLs..."
 grep -oE 'https?://[^[:space:]|`<>"]*' "$MD_FILE" \
   | grep -E '/dns-query(/.*)?$' \
   | sed 's|/dns-query[^/[:space:]|`<>"]*|/dns-query|g' \
-  | sort -u >servers.txt
+  | sort -u >./data/servers.txt
 
 rm "$MD_FILE"
 

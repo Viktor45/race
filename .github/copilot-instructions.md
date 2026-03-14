@@ -7,15 +7,15 @@ Concise, practical guidance to quickly become productive in this repository.
 ### 1. Project Objective
 
 - This is a lightweight static web application / PWA: a single-page app with a service worker and manifest.
-- Core artifacts: [`index.html`](index.html), [`script.js`](script.js), [`style.css`](style.css), [`sw.js`](sw.js), [`manifest.json`](manifest.json).
+- Core artifacts: [`index.html`](index.html), [`src/script.js`](src/script.js), [`src/style.css`](src/style.css), [`src/sw.js`](src/sw.js), [`src/manifest.json`](src/manifest.json).
 
 ---
 
 ### 2. High-Level Architecture
 
-- **Client-side logic**: Delivered as static files; all behavior resides in `script.js`.
-- **Offline support**: Implemented via [`sw.js`](sw.js) (Service Worker).
-- **PWA configuration**: Defined in [`manifest.json`](manifest.json).
+- **Client-side logic**: Delivered as static files; all behavior resides in `src/script.js`.
+- **Offline support**: Implemented via [`src/sw.js`](src/sw.js) (Service Worker).
+- **PWA configuration**: Defined in [`src/manifest.json`](src/manifest.json).
 - **Deployment & integration assets**: Domain/server lists in [`domains.txt`](domains.txt) and [`servers.txt`](servers.txt); automation scripts in [`servers.sh`](servers.sh).
 
 ---
@@ -26,7 +26,7 @@ Concise, practical guidance to quickly become productive in this repository.
   ```bash
   python3 -m http.server 8000
   ```
-- **PWA / offline**: Verify service worker registration in browser DevTools — see [`script.js`](script.js) and [`sw.js`](sw.js).
+- **PWA / offline**: Verify service worker registration in browser DevTools — see [`src/script.js`](src/script.js) and [`src/sw.js`](src/sw.js).
 - **Deployment**: Refer to [`servers.sh`](servers.sh) and [`servers.txt`](servers.txt). Scripts use simple tools (`ssh`, `curl`). Always review contents before execution.
 
 ---
@@ -34,8 +34,8 @@ Concise, practical guidance to quickly become productive in this repository.
 ### 4. Project Conventions & Patterns
 
 - **Minimalism**: Vanilla HTML/CSS/JS — no bundlers or transpilers.
-- **Separation of concerns**: Behavioral logic lives in `script.js`; styling in `style.css`.
-- **Asset management**: When adding new static files, update both `manifest.json` and, if needed, the cache logic in `sw.js`.
+- **Separation of concerns**: Behavioral logic lives in `src/script.js`; styling in `src/style.css`.
+- **Asset management**: When adding new static files, update both `src/manifest.json` and, if needed, the cache logic in `src/sw.js`.
 
 ---
 

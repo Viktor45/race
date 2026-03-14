@@ -3,11 +3,11 @@ const CACHE_NAME = 'doh-tester-v1'
 const urlsToCache = [
 	'./',
 	'./index.html',
-	'./style.css',
-	'./script.js',
-	'./servers.txt',
-	'./domains.txt',
-	'./manifest.json',
+	'src/style.css',
+	'src/script.js',
+	'data/servers.txt',
+	'data/domains.txt',
+	'src/manifest.json',
 ]
 
 self.addEventListener('install', event => {

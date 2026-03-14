@@ -43,6 +43,8 @@ cd race
 
 Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
 
+> 💡 **Project structure**: Code is organized in `src/` (JS/CSS), `data/` (txt files), `images/` (icons), with `index.html` in root.
+
 > 💡 **Hosting tip**: Deploy to [GitHub Pages](https) in seconds:
 >
 > 1. Go to **Settings → Pages**
