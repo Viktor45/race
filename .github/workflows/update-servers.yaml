@@ -34,7 +34,7 @@ jobs:
     permissions:
       # Only need write access to repository content for creating commits
       contents: write
-    timeout-minutes: 15  # Prevent hanging jobs
+    timeout-minutes: 15 # Prevent hanging jobs
 
     steps:
       # ======================================================================
@@ -155,13 +155,7 @@ jobs:
           git diff --cached --stat
 
           # Create informative commit message with timestamp
-          COMMIT_MSG="chore: auto-update servers.txt from curl DoH wiki
-
-This automated update fetches the latest DoH server list from:
-https://github.com/curl/curl/wiki/DNS-over-HTTPS
-
-Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_MSG="chore: auto-update servers.txt from curl DoH wiki"
 
           git commit -m "$COMMIT_MSG"
           echo "✓ Changes committed"
