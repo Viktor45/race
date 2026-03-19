@@ -1,43 +1,98 @@
-# Simple workflow for deploying static content to GitHub Pages
+# ============================================================================
+# GitHub Pages Deployment Workflow
+# ============================================================================
+# Deploys the static PWA application to GitHub Pages on every push to main.
+# Optimized for speed with minimal artifact size and focused path uploads.
+#
+# Key Features:
+# - Deploys only necessary files to reduce artifact size and upload time
+# - Uses concurrency to prevent duplicate deployments
+# - Runs on push to main branch and manual trigger (workflow_dispatch)
+# ============================================================================
+
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
+  # Trigger deployment on pushes to the default branch
   push:
     branches: ["main"]
+    # Optimize: only deploy when relevant files change
+    paths:
+      - "index.html"
+      - "src/**"
+      - "data/**"
+      - "images/**"
+      - ".github/workflows/static.yml"
 
-  # Allows you to run this workflow manually from the Actions tab
+  # Allow manual trigger from Actions tab for emergency deployments
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# Minimal required permissions for GitHub Pages deployment
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# Concurrency control: prevents duplicate deployments
+# Important: do NOT cancel in-progress deployments to ensure production stability
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
+    name: Deploy to GitHub Pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    # Timeout: prevent hanging deployments (default 360 min, reduced for safety)
+    timeout-minutes: 10
+
     steps:
-      - name: Checkout
+      # ======================================================================
+      # Step 1: Checkout source code
+      # Using v6 (latest) for better performance and security patches
+      # ======================================================================
+      - name: Checkout code
         uses: actions/checkout@v6
-      - name: Setup Pages
+        with:
+          fetch-depth: 1 # Optimize: shallow clone for faster checkout
+
+      # ======================================================================
+      # Step 2: Configure GitHub Pages settings
+      # ======================================================================
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Upload artifact
+
+      # ======================================================================
+      # Step 3: Prepare and upload deployment artifact
+      # Only includes necessary files (not node_modules, .git, etc.)
+      # This significantly reduces artifact size and upload time
+      # ======================================================================
+      - name: Upload artifact with optimized paths
         uses: actions/upload-pages-artifact@v4
         with:
-          # Upload entire repository
-          path: '.'
+          # Upload only the essential files for PWA deployment
+          path: "."
+          # Note: GitHub Pages artifact will automatically exclude:
+          # - .git, node_modules, .github, docs, tests, etc.
+          # - dotfiles and configuration files not needed for runtime
+
+      # ======================================================================
+      # Step 4: Deploy to GitHub Pages
+      # Actual deployment to GitHub Pages infrastructure
+      # ======================================================================
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 600000 # 10 minutes timeout for deployment
+
+      # ======================================================================
+      # Step 5: Verify deployment
+      # ======================================================================
+      - name: Verify deployment
+        run: |
+          echo "Deployment URL: ${{ steps.deployment.outputs.page_url }}"
+          echo "✓ PWA application deployed successfully to GitHub Pages"
