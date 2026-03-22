@@ -44,6 +44,7 @@ https://de-f1.foxyfy.net/dns-query
 https://dns.a47.me/dns-query
 https://dns.aa.net.uk/dns-query
 https://dns.adguard-dns.com/dns-query
+https://dns.adnull.com/dns-query
 https://dns.akbxr.com/dns-query
 https://dns.alidns.com/dns-query
 https://dns.anon.no/dns-query
