@@ -2,6 +2,19 @@
 
 Simple DoH Latency Tester
 
+<!-- TOC -->
+* [race](#race)
+  * [✨ Features](#-features)
+  * [🚀 Getting Started](#-getting-started)
+    * [1. Clone or download this repository](#1-clone-or-download-this-repository)
+    * [2. Open in browser](#2-open-in-browser)
+  * [🧪 How to Use](#-how-to-use)
+  * [📦 Built-In Resolver List](#-built-in-resolver-list)
+  * [📊 Technical Details](#-technical-details)
+  * [📜 License](#-license)
+  * [🙌 Acknowledgements](#-acknowledgements)
+<!-- TOC -->
+
 > **Measure network latency and DNS resolution performance of public DoH resolvers — directly in your browser.**
 
 A fully client-side, privacy-respecting tool for benchmarking [DNS-over-HTTPS (DoH)](https://datatracker.ietf.org/doc/html/rfc8484) and JSON-based DNS services. No data leaves your browser. No tracking. No backend required.
@@ -45,7 +58,7 @@ Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
 
 > 💡 **Project structure**: Code is organized in `src/` (JS/CSS), `data/` (txt files), `images/` (icons), with `index.html` in root.
 
-> 💡 **Hosting tip**: Deploy to [GitHub Pages](https) in seconds:
+> 💡 **Hosting tip**: Deploy to GitHub Pages in seconds:
 >
 > 1. Go to **Settings → Pages**
 > 2. Set source to **Deploy from a branch**
@@ -95,7 +108,7 @@ If no `servers.txt` is provided, the tool uses a curated list of **200+ public D
 ## 📊 Technical Details
 
 | Component   | Technology                                                 |
-| ----------- | ---------------------------------------------------------- |
+|-------------|------------------------------------------------------------|
 | Frontend    | Vanilla JavaScript (ES6+)                                  |
 | Styling     | CSS with native dark/light mode                            |
 | DNS Query   | RFC 8484-compliant (`POST` with `application/dns-message`) |
