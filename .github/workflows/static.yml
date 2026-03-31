@@ -63,7 +63,7 @@ jobs:
       # Step 2: Configure GitHub Pages settings
       # ======================================================================
       - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       # ======================================================================
       # Step 3: Prepare and upload deployment artifact
