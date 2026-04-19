@@ -267,6 +267,7 @@ https://secure.hafnova.com/dns-query
 https://security.cloudflare-dns.com/dns-query
 https://seoul.dnsovertor.cc/dns-query
 https://sg-w-p-1.nashkan.net/dns-query
+https://shitblocker.com/dns-query
 https://sin03.dnscry.pt/dns-query
 https://sjc01.dnscry.pt/dns-query
 https://sky.rethinkdns.com/dns-query
