@@ -71,7 +71,7 @@ jobs:
       # This significantly reduces artifact size and upload time
       # ======================================================================
       - name: Upload artifact with optimized paths
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           # Upload only the essential files for PWA deployment
           path: "."
