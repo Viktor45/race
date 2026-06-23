@@ -55,7 +55,7 @@ jobs:
       # Using v6 (latest) for better performance and security patches
       # ======================================================================
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1 # Optimize: shallow clone for faster checkout
 
