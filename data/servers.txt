@@ -26,7 +26,6 @@ https://child.joindns4.eu/dns-query
 https://chuncheon.dnsovertor.cc/dns-query
 https://clean.dnsforge.de/dns-query
 https://cloudflare-dns.com/dns-query
-https://cryptostorm.is/dns-query
 https://dns.a47.me/dns-query
 https://dns.aa.net.uk/dns-query
 https://dns.adguard-dns.com/dns-query
