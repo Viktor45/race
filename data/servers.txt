@@ -28,7 +28,6 @@ https://cloudflare-dns.com/dns-query
 https://dns.a47.me/dns-query
 https://dns.aa.net.uk/dns-query
 https://dns.adguard-dns.com/dns-query
-https://dns.akbxr.com/dns-query
 https://dns.alidns.com/dns-query
 https://dns.anon.no/dns-query
 https://dns.applewebkit.dev/dns-query
@@ -86,7 +85,6 @@ https://dns.neeb.it/dns-query
 https://dns.nick-slowinski.de/dns-query
 https://dns.njal.la/dns-query
 https://dns.novg.net/dns-query
-https://dns.ofdoom.net/dns-query
 https://dns.omada.cafe/dns-query
 https://dns.paesa.es/dns-query
 https://dns.paulo.nom.za/dns-query
@@ -196,7 +194,6 @@ https://protected.canadianshield.cira.ca/dns-query
 https://protective.joindns4.eu/dns-query
 https://public.dns.iij.jp/dns-query
 https://regiopolis.cloud/dns-query
-https://renardbleu.dev/dns-query
 https://resolver.sunet.se/dns-query
 https://revelio.top/dns-query
 https://rfree1.blue-shield.at/dns-query
@@ -209,7 +206,6 @@ https://security.cloudflare-dns.com/dns-query
 https://seoul.dnsovertor.cc/dns-query
 https://sg-w-p-1.nashkan.net/dns-query
 https://sky.rethinkdns.com/dns-query
-https://syd.adfilter.net/dns-query
 https://tiger.dns.qwer.pw/dns-query
 https://unfiltered.adguard-dns.com/dns-query
 https://unfiltered.joindns4.eu/dns-query
