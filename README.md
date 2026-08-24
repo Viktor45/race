@@ -18,10 +18,11 @@
   - 🟢 ≤ 50 ms — excellent
   - 🟡 ≤ 150 ms — acceptable
   - 🔴 > 150 ms — slow
+- **Summary & filtering** — live stats (tested / fastest / median / failed), filter chips by speed class, and search by URL
 - **Custom inputs** — upload your own server list (`servers.txt`) and test against your own domain(s)
-- **CSV export** — save the full results table with one click
+- **CSV export & sharing** — save the results as CSV, or share them via the system share sheet where the browser supports it
 - **Light / dark theme** — follows your OS preference, with a manual toggle that remembers your choice
-- **Works offline** — installable PWA with a service worker cache
+- **Works offline** — installable PWA with a service worker cache, an install button, an offline indicator, and an in-app update notification
 - **Zero dependencies** — plain HTML/CSS/JS, no build step
 
 ---
@@ -52,8 +53,9 @@ Then open <http://localhost:8000>.
 2. *(Optional)* Open **Settings** to:
    - upload your own `servers.txt` — one DoH URL per line, e.g. `https://1.1.1.1/dns-query`
    - set a domain to validate against (default: `example.com`), or upload a `domains.txt` file
-3. Watch results appear and sort themselves by latency. Hover over a latency value to see the DNS status of that resolver.
-4. Click **Cancel** to stop a run early, or **Export CSV** to download the results.
+3. Watch results appear and sort themselves by latency. Hover over a latency value to see the DNS status of that resolver. Use the filter chips or the search field to narrow the list.
+4. Click **Cancel** to stop a run early, **Export CSV** to download the results, or **Share** to send them via the system share sheet.
+5. *(Optional)* Click **Install** in the top bar to install the app and use it offline.
 
 ---
 
@@ -61,7 +63,7 @@ Then open <http://localhost:8000>.
 
 For each resolver, the tool runs two checks:
 
-1. **Connectivity probe** — a `HEAD` request, falling back to `no-cors` `HEAD`/`GET` requests. Most public resolvers don't send CORS headers, so an opaque `no-cors` response is the only reliable way to prove reachability and measure the round-trip time from a browser. If every attempt fails, the server is reported as unreachable.
+1. **Connectivity probe** — a `no-cors` `HEAD` request, falling back to a `no-cors` `GET`. Most public resolvers don't send CORS headers, and a browser can't tell a CORS block apart from a real network failure, so the probe deliberately avoids CORS mode: an opaque `no-cors` response resolves whenever the server answers at all, which proves reachability and measures the round-trip time regardless of CORS. Servers that simply don't allow CORS still get a latency in ms; only genuinely unreachable servers (DNS failure, connection refused, timeout) are reported as unreachable.
 2. **DNS validation** — a real DNS query for your test domain:
    - URLs containing `/resolve` are treated as JSON DNS APIs (`?name=…&type=A`)
    - everything else is queried via RFC 8484 (`POST` with an `application/dns-message` body built in the browser)
