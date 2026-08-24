@@ -79,11 +79,15 @@ async function testProvider(provider, signal = null) {
 	let connectivityTime = null
 	let dnsWorks = false
 
-	// Many resolvers don't send CORS headers, so a failed request doesn't
-	// prove the server is down. An opaque no-cors request can't be read,
-	// but it still proves reachability and measures the round-trip time.
+	// Probe with no-cors requests on purpose. Most public resolvers don't send
+	// CORS headers, so a cors-mode request is blocked by the browser even when
+	// the server answered — and the browser can't tell that CORS block apart
+	// from a real network failure. An opaque no-cors response can't be read,
+	// but it resolves whenever the server responds at all, which proves
+	// reachability and gives us the round-trip time. So servers that simply
+	// don't allow CORS get a latency in ms instead of being rejected.
+	// HEAD first (lighter), GET as a fallback for servers that refuse HEAD.
 	const attempts = [
-		{ method: 'HEAD' },
 		{ method: 'HEAD', mode: 'no-cors' },
 		{ method: 'GET', mode: 'no-cors' },
 	]
