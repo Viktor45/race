@@ -1,5 +1,5 @@
 // sw.js — must be served from the repository root so its scope covers the app
-const CACHE_NAME = 'doh-tester-v3'
+const CACHE_NAME = 'doh-tester-v4'
 const urlsToCache = [
 	'./',
 	'./index.html',
@@ -15,7 +15,11 @@ self.addEventListener('install', event => {
 	event.waitUntil(
 		caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)),
 	)
-	self.skipWaiting()
+})
+
+// the page asks us to take over when the user confirms an update
+self.addEventListener('message', event => {
+	if (event.data === 'skip-waiting') self.skipWaiting()
 })
 
 self.addEventListener('activate', event => {

@@ -1,12 +1,14 @@
 {
 	"name": "DoH Latency Tester",
 	"short_name": "DoH Test",
+	"id": "/",
 	"description": "Test DNS-over-HTTPS server response times directly in your browser.",
 	"start_url": "../",
 	"scope": "../",
 	"display": "standalone",
 	"background_color": "#ffffff",
 	"theme_color": "#3b82f6",
+	"categories": ["utilities", "developer"],
 	"icons": [
 		{
 			"src": "../images/android-chrome-192x192.png",

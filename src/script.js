@@ -170,8 +170,10 @@ async function loadBuiltinServers() {
 
 async function init() {
 	currentServers = await loadBuiltinServers()
-	document.getElementById('startBtn').disabled = false
-	document.getElementById('startBtn').textContent = 'Start Test'
+	const startBtn = document.getElementById('startBtn')
+	startBtn.disabled = false
+	startBtn.innerHTML =
+		'<span class="material-symbols-outlined">play_arrow</span> Start Test'
 	document.getElementById('singleDomain').value = 'example.com'
 }
 
@@ -219,6 +221,8 @@ function renderInitialResults() {
 		const li = document.createElement('li')
 		li.className = 'server-item'
 		li.dataset.min = Infinity // unknown yet
+		li.dataset.pending = 'true'
+		li.dataset.speed = 'pending'
 
 		const header = document.createElement('div')
 		header.className = 'server-header'
@@ -229,8 +233,7 @@ function renderInitialResults() {
 		urlEl.title = provider.url
 
 		const avgEl = document.createElement('div')
-		avgEl.className = 'server-avg'
-		avgEl.textContent = 'Testing…'
+		avgEl.className = 'server-avg skeleton-text'
 
 		header.appendChild(urlEl)
 		header.appendChild(avgEl)
@@ -239,9 +242,7 @@ function renderInitialResults() {
 		barContainer.className = 'server-bar-container'
 
 		const bar = document.createElement('div')
-		bar.className = 'server-bar'
-		bar.style.width = '0%'
-		bar.style.background = 'var(--bar-bg)'
+		bar.className = 'server-bar skeleton-bar'
 
 		barContainer.appendChild(bar)
 
@@ -256,6 +257,7 @@ function renderResultItem(result) {
 	const li = document.createElement('li')
 	li.className = 'server-item'
 	li.dataset.min = result.error ? Infinity : String(result.min)
+	if (result.error) li.dataset.speed = 'error'
 
 	const header = document.createElement('div')
 	header.className = 'server-header'
@@ -303,6 +305,7 @@ function renderResultItem(result) {
 		if (mainTime <= 50) barClass = 'fast'
 		else if (mainTime <= 150) barClass = 'medium'
 		bar.classList.add(barClass)
+		li.dataset.speed = barClass
 	}
 
 	return li
@@ -342,19 +345,22 @@ function finalizePendingTests() {
 	const items = Array.from(resultsList.children)
 
 	items.forEach(item => {
+		if (!item.dataset.pending) return
+		delete item.dataset.pending
+		item.dataset.min = Infinity
+		item.dataset.speed = 'error'
 		const avgEl = item.querySelector('.server-avg')
-		if (avgEl && avgEl.textContent === 'Testing…') {
+		if (avgEl) {
 			avgEl.textContent = 'Timeout'
 			avgEl.className = 'server-avg error'
-			const bar = item.querySelector('.server-bar')
-			if (bar) {
-				bar.className = 'server-bar error'
-				bar.style.width = '0%'
-			}
-			const url = item.querySelector('.server-url')?.textContent || 'Unknown'
-			testResults.push({ url, error: 'Timeout' })
-			item.dataset.min = Infinity
 		}
+		const bar = item.querySelector('.server-bar')
+		if (bar) {
+			bar.className = 'server-bar error'
+			bar.style.width = '0%'
+		}
+		const url = item.querySelector('.server-url')?.textContent || 'Unknown'
+		testResults.push({ url, error: 'Timeout' })
 	})
 }
 
@@ -412,6 +418,45 @@ function renderBars() {
 	})
 }
 
+function updateSummary() {
+	const ok = testResults.filter(r => !r.error)
+	const errors = testResults.length - ok.length
+
+	document.getElementById('statTested').textContent = testResults.length
+	document.getElementById('statErrors').textContent = errors
+
+	const fastestEl = document.getElementById('statFastest')
+	const medianEl = document.getElementById('statMedian')
+	if (ok.length === 0) {
+		fastestEl.textContent = '—'
+		medianEl.textContent = '—'
+		return
+	}
+
+	const times = ok.map(r => r.avg).sort((a, b) => a - b)
+	fastestEl.textContent = `${times[0].toFixed(1)} ms`
+	const mid = Math.floor(times.length / 2)
+	const median =
+		times.length % 2 ? times[mid] : (times[mid - 1] + times[mid]) / 2
+	medianEl.textContent = `${median.toFixed(1)} ms`
+}
+
+let activeFilter = 'all'
+let filterText = ''
+
+function applyFilter() {
+	const items = document.getElementById('resultsList').children
+	for (const li of items) {
+		const speed = li.dataset.speed || ''
+		let visible = activeFilter === 'all' || speed === activeFilter
+		if (visible && filterText) {
+			const url = li.querySelector('.server-url')?.textContent || ''
+			if (!url.toLowerCase().includes(filterText)) visible = false
+		}
+		li.classList.toggle('hidden', !visible)
+	}
+}
+
 function downloadCSV(filename, csv) {
 	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
 	const url = URL.createObjectURL(blob)
@@ -443,8 +488,18 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 	testResults = []
 	resultsEl.classList.remove('hidden')
 	exportBtn.classList.add('hidden')
+	document.getElementById('shareBtn').classList.add('hidden')
 
 	renderInitialResults()
+	updateSummary()
+
+	// reset filters so pending rows are visible during the run
+	activeFilter = 'all'
+	filterText = ''
+	document.getElementById('filterSearch').value = ''
+	for (const c of document.querySelectorAll('#filterChips .chip')) {
+		c.classList.toggle('active', c.dataset.filter === 'all')
+	}
 
 	startBtn.classList.add('hidden')
 	cancelBtn.classList.remove('hidden')
@@ -481,6 +536,8 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 						testResults.push(result)
 						insertSortedResult(result)
 						renderBars()
+						updateSummary()
+						applyFilter()
 						return result
 					})
 					.catch(err => {
@@ -490,6 +547,8 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 						testResults.push(result)
 						insertSortedResult(result)
 						renderBars()
+						updateSummary()
+						applyFilter()
 						return result
 					}),
 			)
@@ -515,13 +574,17 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 			finalizePendingTests()
 			sortResults()
 			renderBars()
+			updateSummary()
+			applyFilter()
 			exportBtn.classList.remove('hidden')
+			if (navigator.share)
+				document.getElementById('shareBtn').classList.remove('hidden')
 			resetUI()
 		}
 	}
 })
 
-document.getElementById('exportBtn').addEventListener('click', () => {
+function buildCSV() {
 	const headers = ['Server URL', 'Network Latency (ms)', 'DNS Works', 'Status']
 	const rows = testResults.map(r => {
 		if (r.error) {
@@ -531,8 +594,28 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 			return `"${r.url.replace(/"/g, '""')}",${r.avg.toFixed(2)},${dnsStatus},OK`
 		}
 	})
-	const csv = [headers.join(','), ...rows].join('\n')
-	downloadCSV('doh-latency-results.csv', csv)
+	return [headers.join(','), ...rows].join('\n')
+}
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+	downloadCSV('doh-latency-results.csv', buildCSV())
+})
+
+document.getElementById('shareBtn').addEventListener('click', async () => {
+	const ok = testResults.filter(r => !r.error).length
+	const text = `DoH latency test: ${ok} of ${testResults.length} resolvers responded`
+	try {
+		const file = new File([buildCSV()], 'doh-latency-results.csv', {
+			type: 'text/csv',
+		})
+		if (navigator.canShare && navigator.canShare({ files: [file] })) {
+			await navigator.share({ files: [file], title: 'DoH latency results' })
+		} else {
+			await navigator.share({ title: 'DoH latency results', text })
+		}
+	} catch (e) {
+		// user dismissed the share sheet — nothing to do
+	}
 })
 
 document.getElementById('toggleSettingsBtn').addEventListener('click', () => {
@@ -562,6 +645,21 @@ document.getElementById('toggleAboutBtn').addEventListener('click', () => {
 		panel.classList.add('hidden')
 		btn.innerHTML = '<span class="material-symbols-outlined">info</span> About'
 	}
+})
+
+document.getElementById('filterChips').addEventListener('click', e => {
+	const chip = e.target.closest('.chip')
+	if (!chip) return
+	activeFilter = chip.dataset.filter
+	for (const c of document.querySelectorAll('#filterChips .chip')) {
+		c.classList.toggle('active', c === chip)
+	}
+	applyFilter()
+})
+
+document.getElementById('filterSearch').addEventListener('input', e => {
+	filterText = e.target.value.trim().toLowerCase()
+	applyFilter()
 })
 
 function getEffectiveTheme() {
@@ -599,8 +697,72 @@ updateThemeButton()
 
 init().catch(console.error)
 
+// PWA: install prompt (Chromium fires it; other browsers use their own UI)
+const installBtn = document.getElementById('installBtn')
+let deferredInstallPrompt = null
+
+window.addEventListener('beforeinstallprompt', e => {
+	e.preventDefault()
+	deferredInstallPrompt = e
+	installBtn.classList.remove('hidden')
+})
+
+installBtn.addEventListener('click', async () => {
+	if (!deferredInstallPrompt) return
+	deferredInstallPrompt.prompt()
+	await deferredInstallPrompt.userChoice
+	deferredInstallPrompt = null
+	installBtn.classList.add('hidden')
+})
+
+window.addEventListener('appinstalled', () => {
+	deferredInstallPrompt = null
+	installBtn.classList.add('hidden')
+})
+
+// PWA: offline indicator
+const offlineBadge = document.getElementById('offlineBadge')
+function updateOnlineStatus() {
+	offlineBadge.classList.toggle('hidden', navigator.onLine)
+}
+window.addEventListener('online', updateOnlineStatus)
+window.addEventListener('offline', updateOnlineStatus)
+updateOnlineStatus()
+
+// PWA: service worker with an explicit "update available" flow — the new
+// worker waits for the user to confirm a reload instead of swapping in
+// under a running test.
 if ('serviceWorker' in navigator) {
+	let reloadedForUpdate = false
+	navigator.serviceWorker.addEventListener('controllerchange', () => {
+		if (reloadedForUpdate) return
+		reloadedForUpdate = true
+		window.location.reload()
+	})
+
 	window.addEventListener('load', () => {
-		navigator.serviceWorker.register('sw.js').catch(console.error)
+		navigator.serviceWorker
+			.register('sw.js')
+			.then(reg => {
+				reg.addEventListener('updatefound', () => {
+					const newWorker = reg.installing
+					if (!newWorker) return
+					newWorker.addEventListener('statechange', () => {
+						const hasActiveController = !!navigator.serviceWorker.controller
+						if (newWorker.state === 'installed' && hasActiveController) {
+							document
+								.getElementById('updateToast')
+								.classList.remove('hidden')
+						}
+					})
+				})
+			})
+			.catch(console.error)
 	})
 }
+
+document.getElementById('updateReloadBtn').addEventListener('click', async () => {
+	if (!('serviceWorker' in navigator)) return
+	const reg = await navigator.serviceWorker.getRegistration()
+	if (reg && reg.waiting) reg.waiting.postMessage('skip-waiting')
+})

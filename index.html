@@ -27,24 +27,53 @@
 
 <body>
 	<main>
-		<header>
-			<h1>DoH Latency Tester</h1>
-			<p>Measure network latency and DNS resolution of DoH servers</p>
-			<noscript>You need to enable JavaScript to run this app.</noscript>
+		<header class="app-header">
+			<div class="app-title">
+				<h1>DoH Latency Tester</h1>
+				<p>Measure network latency and DNS resolution of DoH servers</p>
+			</div>
+			<div class="header-utils">
+				<span id="offlineBadge" class="offline-badge hidden" role="status">Offline</span>
+				<button id="installBtn" class="install-btn hidden">
+					<span class="material-symbols-outlined">download</span>
+					Install
+				</button>
+				<button id="themeBtn" class="theme-btn" title="Switch theme" aria-label="Switch theme">
+					<span class="material-symbols-outlined">dark_mode</span>
+				</button>
+			</div>
 		</header>
+		<noscript>You need to enable JavaScript to run this app.</noscript>
 
-		<div class="controls">
-			<button id="toggleSettingsBtn" class="settings-btn">
-				<span class="material-symbols-outlined">settings</span>
-				Settings
-			</button>
-			<button id="toggleAboutBtn" class="about-btn">
-				<span class="material-symbols-outlined">info</span>
-				About
-			</button>
-			<button id="themeBtn" class="theme-btn" title="Switch theme" aria-label="Switch theme">
-				<span class="material-symbols-outlined">dark_mode</span>
-			</button>
+		<div class="action-bar">
+			<div class="action-group">
+				<button id="startBtn">
+					<span class="material-symbols-outlined">play_arrow</span>
+					Start Test
+				</button>
+				<button id="cancelBtn" class="hidden">
+					<span class="material-symbols-outlined">close</span>
+					Cancel
+				</button>
+				<button id="exportBtn" class="hidden">
+					<span class="material-symbols-outlined">download</span>
+					Export CSV
+				</button>
+				<button id="shareBtn" class="hidden">
+					<span class="material-symbols-outlined">share</span>
+					Share
+				</button>
+			</div>
+			<div class="action-group">
+				<button id="toggleSettingsBtn" class="settings-btn">
+					<span class="material-symbols-outlined">settings</span>
+					Settings
+				</button>
+				<button id="toggleAboutBtn" class="about-btn">
+					<span class="material-symbols-outlined">info</span>
+					About
+				</button>
+			</div>
 		</div>
 
 		<div class="about-panel hidden" id="aboutPanel">
@@ -52,8 +81,9 @@
 			<ol>
 				<li>Click <strong>Start Test</strong> to measure latency of the built-in list of 200+ public DoH resolvers.</li>
 				<li>Optionally open <strong>Settings</strong> to load your own <code>servers.txt</code> (one DoH URL per line) or choose a domain to validate DNS resolution against.</li>
-				<li>Results are sorted by latency: 🟢 ≤ 50 ms, 🟡 ≤ 150 ms, 🔴 &gt; 150 ms. Hover over a value to see the DNS status.</li>
-				<li>Use <strong>Export CSV</strong> to save the results.</li>
+				<li>Results are sorted by latency: 🟢 ≤ 50 ms, 🟡 ≤ 150 ms, 🔴 &gt; 150 ms. Hover over a value to see the DNS status. Use the chips above the list to filter results.</li>
+				<li>Use <strong>Export CSV</strong> to save the results, or <strong>Share</strong> where your browser supports it.</li>
+				<li>Install the app (button in the top bar, or your browser's install option) to use it offline.</li>
 			</ol>
 			<p>
 				Everything runs locally in your browser — no data is sent anywhere.
@@ -79,20 +109,50 @@
 			</label>
 		</div>
 
-		<div class="controls">
-			<button id="startBtn">Start Test</button>
-			<button id="cancelBtn" class="hidden">Cancel</button>
-			<button id="exportBtn" class="hidden">Export CSV</button>
-		</div>
-
 		<div class="progress-group hidden">
 			<progress id="progressBar" value="0" max="100"></progress>
-			<div id="progressText">0 / 0 servers tested</div>
+			<div id="progressText" aria-live="polite">0 / 0 servers tested</div>
 		</div>
 
 		<div id="results" class="hidden">
 			<h2>Results</h2>
+
+			<div class="summary">
+				<div class="stat">
+					<div class="stat-value" id="statTested">0</div>
+					<div class="stat-label">Tested</div>
+				</div>
+				<div class="stat">
+					<div class="stat-value" id="statFastest">—</div>
+					<div class="stat-label">Fastest</div>
+				</div>
+				<div class="stat">
+					<div class="stat-value" id="statMedian">—</div>
+					<div class="stat-label">Median</div>
+				</div>
+				<div class="stat">
+					<div class="stat-value" id="statErrors">0</div>
+					<div class="stat-label">Failed</div>
+				</div>
+			</div>
+
+			<div class="results-toolbar">
+				<div class="chips" id="filterChips">
+					<button class="chip active" data-filter="all">All</button>
+					<button class="chip" data-filter="fast"><span class="dot dot-fast"></span>≤ 50 ms</button>
+					<button class="chip" data-filter="medium"><span class="dot dot-medium"></span>≤ 150 ms</button>
+					<button class="chip" data-filter="slow"><span class="dot dot-slow"></span>&gt; 150 ms</button>
+					<button class="chip" data-filter="error"><span class="dot dot-error"></span>Failed</button>
+				</div>
+				<input type="search" id="filterSearch" placeholder="Filter by URL" aria-label="Filter results by URL" />
+			</div>
+
 			<ul id="resultsList" class="results-list"></ul>
+		</div>
+
+		<div class="toast hidden" id="updateToast" role="status">
+			<span>Update available. Reload to get the latest version.</span>
+			<button id="updateReloadBtn">Reload</button>
 		</div>
 	</main>
 
