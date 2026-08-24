@@ -1,136 +1,116 @@
-# race
+# race — DoH Latency Tester
 
-Simple DoH Latency Tester
+> Measure network latency and DNS resolution performance of public DNS-over-HTTPS (DoH) resolvers — directly in your browser.
 
-<!-- TOC -->
-* [race](#race)
-  * [✨ Features](#-features)
-  * [🚀 Getting Started](#-getting-started)
-    * [1. Clone or download this repository](#1-clone-or-download-this-repository)
-    * [2. Open in browser](#2-open-in-browser)
-  * [🧪 How to Use](#-how-to-use)
-  * [📦 Built-In Resolver List](#-built-in-resolver-list)
-  * [📊 Technical Details](#-technical-details)
-  * [📜 License](#-license)
-  * [🙌 Acknowledgements](#-acknowledgements)
-<!-- TOC -->
+**race** is a fully client-side benchmarking tool for [DNS-over-HTTPS (RFC 8484)](https://datatracker.ietf.org/doc/html/rfc8484) and JSON-based DNS APIs. It tests 200+ public resolvers, ranks them by latency in real time, and verifies that each one actually resolves DNS correctly. No backend, no tracking, no data leaves your browser.
 
-> **Measure network latency and DNS resolution performance of public DoH resolvers — directly in your browser.**
-
-A fully client-side, privacy-respecting tool for benchmarking [DNS-over-HTTPS (DoH)](https://datatracker.ietf.org/doc/html/rfc8484) and JSON-based DNS services. No data leaves your browser. No tracking. No backend required.
+**Live demo:** [viktor45.github.io/race](https://viktor45.github.io/race/)
 
 ---
 
-## ✨ Features
+## Features
 
 - **Dual-layer testing**
-  - ✅ **Network latency**: `HEAD`/`GET` round-trip time to each resolver
-  - ✅ **DNS resolution**: Validates correctness using your domain(s)
-- **Smart batching**  
-  Automatically processes servers in **batches of 5** to avoid browser throttling and respect public resolver resources.
-- **Real-time UI**  
-  Live-updating results with color-coded, proportional progress bars:
-  - 🟢 **Green** (≤ 50 ms): Excellent
-  - 🟡 **Yellow** (51–150 ms): Acceptable
-  - 🔴 **Red** (> 150 ms): Poor
-- **Flexible input**
-  - Test a single domain (default: `example.com`)
-  - Or upload a `domains.txt` file for extended validation
-- **Zero dependencies**  
-  Pure HTML/CSS/JS — deploy anywhere: GitHub Pages, Netlify, local filesystem.
-- **Privacy by design**  
-  All logic runs in-browser. No telemetry. No analytics.
+  - **Network latency** — round-trip time of a connectivity probe to each resolver
+  - **DNS resolution** — a real DNS query for your chosen domain to verify the resolver actually works (`✅ DNS OK` / `⚠️ DNS failed`)
+- **200+ built-in resolvers** — curated from the [curl DoH wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS) and refreshed automatically every week
+- **Live results** — the list re-sorts by latency as results arrive, with color-coded progress bars:
+  - 🟢 ≤ 50 ms — excellent
+  - 🟡 ≤ 150 ms — acceptable
+  - 🔴 > 150 ms — slow
+- **Custom inputs** — upload your own server list (`servers.txt`) and test against your own domain(s)
+- **CSV export** — save the full results table with one click
+- **Light / dark theme** — follows your OS preference, with a manual toggle that remembers your choice
+- **Works offline** — installable PWA with a service worker cache
+- **Zero dependencies** — plain HTML/CSS/JS, no build step
 
 ---
 
-## 🚀 Getting Started
+## Quick Start
 
-### 1. Clone or download this repository
+### Use the hosted version
+
+Open [viktor45.github.io/race](https://viktor45.github.io/race/), click **Start Test**, and wait for the results.
+
+### Run locally
 
 ```bash
 git clone https://github.com/viktor45/race.git
 cd race
+python3 -m http.server 8000
 ```
 
-### 2. Open in browser
+Then open <http://localhost:8000>.
 
-Simply open `index.html` in any modern browser (Chrome, Firefox, Safari, Edge).
-
-> 💡 **Project structure**: Code is organized in `src/` (JS/CSS), `data/` (txt files), `images/` (icons), with `index.html` in root.
-
-> 💡 **Hosting tip**: Deploy to GitHub Pages in seconds:
->
-> 1. Go to **Settings → Pages**
-> 2. Set source to **Deploy from a branch**
-> 3. Select `main` and `/root`
+> ⚠️ **Don't open `index.html` via `file://`** — the app loads its resolver list with `fetch()`, which browsers block for local files. Any static HTTP server works (`npx serve`, `php -S`, nginx, etc.).
 
 ---
 
-## 🧪 How to Use
+## How to Use
 
-1. **(Optional)** Prepare a `servers.txt` file with DoH URLs (one per line):
-
-   ```txt
-   https://1.1.1.1/dns-query
-   https://8.8.8.8/resolve
-   https://dns.google/dns-query
-   ```
-
-2. **Choose a domain** to test:
-   - Enter manually (e.g., `example.com`)
-   - **Or** upload `domains.txt` (one domain per line)
-
-3. Click **Start Test**
-
-4. **Interpret results**:
-   - **Left**: Resolver URL
-   - **Right**: Network latency (ms)
-   - **Progress bar**: Visual performance indicator
-   - **Tooltip**: Hover over latency to see DNS status (`✅ DNS OK` / `⚠️ DNS failed`)
-
-5. **Export**: Click **Export CSV** to save results
+1. Click **Start Test** to benchmark the built-in resolver list.
+2. *(Optional)* Open **Settings** to:
+   - upload your own `servers.txt` — one DoH URL per line, e.g. `https://1.1.1.1/dns-query`
+   - set a domain to validate against (default: `example.com`), or upload a `domains.txt` file
+3. Watch results appear and sort themselves by latency. Hover over a latency value to see the DNS status of that resolver.
+4. Click **Cancel** to stop a run early, or **Export CSV** to download the results.
 
 ---
 
-## 📦 Built-In Resolver List
+## How It Works
 
-If no `servers.txt` is provided, the tool uses a curated list of **200+ public DoH servers** from the [curl DoH wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS), including:
+For each resolver, the tool runs two checks:
 
-- **Cloudflare** (`1.1.1.1`)
-- **Google** (`8.8.8.8`)
-- **Quad9** (`9.9.9.9`)
-- **AdGuard**, **NextDNS**, **ControlD**, **Mullvad**, and 150+ others
+1. **Connectivity probe** — a `HEAD` request, falling back to `no-cors` `HEAD`/`GET` requests. Most public resolvers don't send CORS headers, so an opaque `no-cors` response is the only reliable way to prove reachability and measure the round-trip time from a browser. If every attempt fails, the server is reported as unreachable.
+2. **DNS validation** — a real DNS query for your test domain:
+   - URLs containing `/resolve` are treated as JSON DNS APIs (`?name=…&type=A`)
+   - everything else is queried via RFC 8484 (`POST` with an `application/dns-message` body built in the browser)
 
-> ✅ All entries support the standard `/dns-query` or `/resolve` endpoints.
-
----
-
-## 📊 Technical Details
-
-| Component   | Technology                                                 |
-|-------------|------------------------------------------------------------|
-| Frontend    | Vanilla JavaScript (ES6+)                                  |
-| Styling     | CSS with native dark/light mode                            |
-| DNS Query   | RFC 8484-compliant (`POST` with `application/dns-message`) |
-| JSON API    | Google/Alibaba-style `/resolve`                            |
-| Concurrency | Batched execution (max 5 concurrent requests)              |
-| Output      | CSV export                                                 |
+Resolvers are tested in **batches of 5** with a **5-second timeout** per request, to avoid browser throttling and to be fair to public infrastructure.
 
 ---
 
-## 📜 License
+## Built-In Resolver List
 
-This project is licensed under the **GPL-3.0 license** — see [LICENSE](LICENSE) for details.
+The default list lives in `data/servers.txt` and contains 200+ public resolvers — Cloudflare, Google, Quad9, AdGuard, NextDNS, ControlD, Mullvad, and many more.
+
+It is regenerated automatically every week from the [curl DoH wiki](https://github.com/curl/curl/wiki/DNS-over-HTTPS) by a GitHub Actions workflow, so the built-in list stays current without any manual work.
 
 ---
 
-## 🙌 Acknowledgements
+## Project Structure
 
-- Public DoH server list: [curl/curl Wiki — DNS-over-HTTPS](https://github.com/curl/curl/wiki/DNS-over-HTTPS)
+```
+index.html          single-page entry point
+src/script.js       all application logic
+src/style.css       styling and theming
+src/theme.js        applies the saved theme before first paint
+sw.js               service worker (offline cache) — must stay at repo root
+src/manifest.json   PWA manifest
+data/servers.txt    built-in resolver list (auto-generated, do not edit by hand)
+data/servers.sh     script that regenerates servers.txt from the curl wiki
+images/             icons and favicons
+```
+
+---
+
+## Hosting Your Own Copy
+
+The app is static — deploy it anywhere that serves files. This repository ships a GitHub Actions workflow (`.github/workflows/static.yml`) that deploys to GitHub Pages on every push to `main`. If you fork the repo, enable Pages under **Settings → Pages** with the source set to **GitHub Actions**.
+
+---
+
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE).
+
+---
+
+## Acknowledgements
+
+- Resolver list: [curl/curl Wiki — DNS-over-HTTPS](https://github.com/curl/curl/wiki/DNS-over-HTTPS)
 - Icons: [Material Symbols](https://fonts.google.com/icons?icon.set=Material+Symbols)
-- Inspiration: [dnsleaktest.com](https://dnsleaktest.com), [browserleaks.com](https://browserleaks.com)
 
 ---
 
-> 🔒 **Your privacy matters. This tool never sends your data anywhere.**  
-> 🚀 **Test fast. Test fair. Test privately.**
+> 🔒 Everything runs locally in your browser. No telemetry, no analytics, no data sent anywhere except the resolvers you test.

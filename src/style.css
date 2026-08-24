@@ -13,7 +13,8 @@
 	--transition-fast: 0.15s;
 	--transition: 0.3s;
 
-	/* Light theme */
+	/* Light theme (default) */
+	color-scheme: light;
 	--bg-body: #ffffff;
 	--bg-card: #ffffff;
 	--bg-input: #f8f9fa;
@@ -22,14 +23,39 @@
 	--border: #e5e7eb;
 	--primary: #3b82f6;
 	--primary-hover: #2563eb;
+	--primary-text: #ffffff;
 	--success: #10b981;
 	--warning: #f59e0b;
 	--error: #ef4444;
 	--bar-bg: #f3f4f6;
+	--btn-disabled-bg: #cbd5e1;
+	--btn-disabled-text: #f8fafc;
 }
 
+/* Dark theme: explicit user choice (persisted in localStorage) */
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--bg-body: #111827;
+	--bg-card: #1f2937;
+	--bg-input: #374151;
+	--text-primary: #f9fafb;
+	--text-secondary: #d1d5db;
+	--border: #374151;
+	--primary: #60a5fa;
+	--primary-hover: #93c5fd;
+	--primary-text: #111827;
+	--success: #34d399;
+	--warning: #fbbf24;
+	--error: #f87171;
+	--bar-bg: #4b5563;
+	--btn-disabled-bg: #374151;
+	--btn-disabled-text: #9ca3af;
+}
+
+/* Dark theme: follow the browser/OS preference until the user picks one */
 @media (prefers-color-scheme: dark) {
-	:root {
+	:root:not([data-theme]) {
+		color-scheme: dark;
 		--bg-body: #111827;
 		--bg-card: #1f2937;
 		--bg-input: #374151;
@@ -38,10 +64,13 @@
 		--border: #374151;
 		--primary: #60a5fa;
 		--primary-hover: #93c5fd;
+		--primary-text: #111827;
 		--success: #34d399;
 		--warning: #fbbf24;
 		--error: #f87171;
 		--bar-bg: #4b5563;
+		--btn-disabled-bg: #374151;
+		--btn-disabled-text: #9ca3af;
 	}
 }
 
@@ -53,7 +82,7 @@
 
 body {
 	margin: 0;
-	font-family: var(--font-sans);
+	font-family: var(--font-sans), serif;
 	background-color: var(--bg-body);
 	color: var(--text-primary);
 	line-height: 1.5;
@@ -118,7 +147,7 @@ header p {
 		box-shadow var(--transition-fast);
 	width: 100%;
 	height: 2.5rem;
-	font-family: var(--font-sans);
+	font-family: var(--font-sans), serif;
 }
 
 .file-inputs input[type='text']::placeholder {
@@ -156,7 +185,8 @@ header p {
 	position: relative;
 }
 
-.settings-btn {
+.settings-btn,
+.about-btn {
 	background: #6b7280;
 	padding: 0.5rem 1rem;
 	font-size: 0.95rem;
@@ -164,13 +194,16 @@ header p {
 	align-items: center;
 	gap: 0.5rem;
 }
-.settings-btn:hover:not(:disabled) {
+.settings-btn:hover:not(:disabled),
+.about-btn:hover:not(:disabled) {
 	background: #4b5563;
 	transform: none;
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.settings-btn .material-symbols-outlined {
+.settings-btn .material-symbols-outlined,
+.about-btn .material-symbols-outlined,
+.theme-btn .material-symbols-outlined {
 	font-size: 1.2rem;
 	font-variation-settings:
 		'FILL' 0,
@@ -179,8 +212,64 @@ header p {
 		'opsz' 24;
 }
 
+.theme-btn {
+	background: transparent;
+	color: var(--text-secondary);
+	border: 1px solid var(--border);
+	padding: 0.5rem;
+	box-shadow: none;
+}
+.theme-btn:hover:not(:disabled) {
+	background: var(--bg-input);
+	color: var(--text-primary);
+	transform: none;
+	box-shadow: none;
+}
+.theme-btn .material-symbols-outlined {
+	font-size: 1.3rem;
+}
+
 #settingsForm {
 	margin-bottom: var(--space-lg);
+}
+
+.about-panel {
+	background: var(--bg-card);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	padding: var(--space-md) var(--space-lg);
+	margin-bottom: var(--space-lg);
+	text-align: left;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.about-panel h2 {
+	margin: 0 0 var(--space-xs);
+	font-size: 1.1rem;
+}
+
+.about-panel ol {
+	margin: 0 0 var(--space-sm);
+	padding-left: 1.25rem;
+	color: var(--text-secondary);
+	font-size: 0.95rem;
+	display: grid;
+	gap: var(--space-2xs);
+}
+
+.about-panel p {
+	margin: 0;
+	font-size: 0.95rem;
+	color: var(--text-secondary);
+}
+
+.about-panel a {
+	color: var(--primary);
+	font-weight: 600;
+	text-decoration: none;
+}
+.about-panel a:hover {
+	text-decoration: underline;
 }
 
 button {
@@ -188,7 +277,7 @@ button {
 	font-size: 1rem;
 	font-weight: 600;
 	background: var(--primary);
-	color: white;
+	color: var(--primary-text);
 	border: none;
 	border-radius: var(--radius-md);
 	cursor: pointer;
@@ -209,7 +298,8 @@ button:active:not(:disabled) {
 }
 
 button:disabled {
-	background: #cbd5e1;
+	background: var(--btn-disabled-bg);
+	color: var(--btn-disabled-text);
 	cursor: not-allowed;
 	transform: none;
 	box-shadow: none;

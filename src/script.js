@@ -27,7 +27,8 @@ function makeDnsPacket(domain) {
 	const labels = domain.toLowerCase().split('.')
 	let qname = []
 	for (const label of labels) {
-		qname.push(label.length, ...new TextEncoder().encode(label))
+		const bytes = new TextEncoder().encode(label)
+		qname.push(bytes.length, ...bytes)
 	}
 	qname.push(0)
 
@@ -75,74 +76,70 @@ function fetchWithTimeout(url, options, timeout = TIMEOUT_MS, signal = null) {
 }
 
 async function testProvider(provider, signal = null) {
-	const start = performance.now()
 	let connectivityTime = null
-	let networkSuccess = false
 	let dnsWorks = false
 
-	try {
-		await fetchWithTimeout(provider.url, { method: 'HEAD' }, TIMEOUT_MS, signal)
-		connectivityTime = performance.now() - start
-		networkSuccess = true
-	} catch (err) {
-		connectivityTime = performance.now() - start
-		networkSuccess = false
+	// Many resolvers don't send CORS headers, so a failed request doesn't
+	// prove the server is down. An opaque no-cors request can't be read,
+	// but it still proves reachability and measures the round-trip time.
+	const attempts = [
+		{ method: 'HEAD' },
+		{ method: 'HEAD', mode: 'no-cors' },
+		{ method: 'GET', mode: 'no-cors' },
+	]
+
+	for (const options of attempts) {
+		const start = performance.now()
+		try {
+			await fetchWithTimeout(provider.url, options, TIMEOUT_MS, signal)
+			connectivityTime = performance.now() - start
+			break
+		} catch (err) {
+			if (signal && signal.aborted) throw err
+		}
 	}
 
-	if (!networkSuccess) {
-		try {
-			await fetchWithTimeout(
+	if (connectivityTime === null) {
+		return { url: provider.url, error: 'Network unreachable' }
+	}
+
+	const testDomain = currentDomains[0] || 'example.com'
+	try {
+		if (provider.type === 'json') {
+			const url = `${provider.url}?name=${encodeURIComponent(testDomain)}&type=A`
+			const res = await fetchWithTimeout(url, {}, TIMEOUT_MS, signal)
+			const contentType = (
+				res.headers.get('content-type') || ''
+			).toLowerCase()
+			if (!contentType.includes('application/json'))
+				throw new Error('Invalid JSON')
+			if (!res.ok) throw new Error(`HTTP ${res.status}`)
+			const data = await res.json()
+			if (data.Status !== 0) throw new Error('DNS error')
+			dnsWorks = true
+		} else {
+			const packet = makeDnsPacket(testDomain)
+			const res = await fetchWithTimeout(
 				provider.url,
-				{ method: 'GET' },
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/dns-message' },
+					body: packet,
+				},
 				TIMEOUT_MS,
 				signal,
 			)
-			connectivityTime = performance.now() - start
-			networkSuccess = true
-		} catch (err) {
-			connectivityTime = performance.now() - start
-			networkSuccess = false
+			const contentType = (
+				res.headers.get('content-type') || ''
+			).toLowerCase()
+			if (!contentType.includes('application/dns-message'))
+				throw new Error('Invalid DoH')
+			if (!res.ok) throw new Error(`HTTP ${res.status}`)
+			dnsWorks = true
 		}
-	}
-
-	if (networkSuccess) {
-		const testDomain = currentDomains[0] || 'example.com'
-		try {
-			if (provider.type === 'json') {
-				const url = `${provider.url}?name=${encodeURIComponent(testDomain)}&type=A`
-				const res = await fetchWithTimeout(url, {}, TIMEOUT_MS, signal)
-				const contentType = (
-					res.headers.get('content-type') || ''
-				).toLowerCase()
-				if (!contentType.includes('application/json'))
-					throw new Error('Invalid JSON')
-				if (!res.ok) throw new Error(`HTTP ${res.status}`)
-				const data = await res.json()
-				if (data.Status !== 0) throw new Error('DNS error')
-				dnsWorks = true
-			} else {
-				const packet = makeDnsPacket(testDomain)
-				const res = await fetchWithTimeout(
-					provider.url,
-					{
-						method: 'POST',
-						headers: { 'Content-Type': 'application/dns-message' },
-						body: packet,
-					},
-					TIMEOUT_MS,
-					signal,
-				)
-				const contentType = (
-					res.headers.get('content-type') || ''
-				).toLowerCase()
-				if (!contentType.includes('application/dns-message'))
-					throw new Error('Invalid DoH')
-				if (!res.ok) throw new Error(`HTTP ${res.status}`)
-				dnsWorks = true
-			}
-		} catch (err) {
-			dnsWorks = false
-		}
+	} catch (err) {
+		if (signal && signal.aborted) throw err
+		dnsWorks = false
 	}
 
 	return {
@@ -311,6 +308,14 @@ function insertSortedResult(result) {
 	const resultsList = document.getElementById('resultsList')
 	const newLi = renderResultItem(result)
 
+	// replace the "Testing…" placeholder for this server
+	for (const li of resultsList.children) {
+		if (li.querySelector('.server-url')?.textContent === result.url) {
+			li.remove()
+			break
+		}
+	}
+
 	let inserted = false
 	for (const li of resultsList.children) {
 		const otherMin = Number(li.dataset.min)
@@ -356,9 +361,10 @@ function sortResults() {
 	if (items.length === 0) return
 
 	items.sort((a, b) => {
-		const aMin = parseFloat(a.dataset.min) || Infinity
-		const bMin = parseFloat(b.dataset.min) || Infinity
-		return aMin - bMin
+		const aMin = Number.parseFloat(a.dataset.min)
+		const bMin = Number.parseFloat(b.dataset.min)
+		return (Number.isFinite(aMin) ? aMin : Infinity) -
+			(Number.isFinite(bMin) ? bMin : Infinity)
 	})
 
 	resultsList.innerHTML = ''
@@ -451,6 +457,9 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 		abortController.abort()
 		resetUI()
 		exportBtn.classList.add('hidden')
+		resultsEl.classList.add('hidden')
+		resultsList.innerHTML = ''
+		testResults = []
 	}
 
 	let completed = 0
@@ -464,15 +473,15 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 			const batchPromises = batch.map(provider =>
 				testProvider(provider, abortController.signal)
 					.then(result => {
+						if (abortController.signal.aborted) return result
 						testResults.push(result)
 						insertSortedResult(result)
 						renderBars()
 						return result
 					})
 					.catch(err => {
-						if (abortController.signal.aborted) {
-							throw err
-						}
+						if (err.name === 'AbortError') throw err
+						if (abortController.signal.aborted) return null
 						const result = { url: provider.url, error: 'Test failed' }
 						testResults.push(result)
 						insertSortedResult(result)
@@ -481,20 +490,20 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 					}),
 			)
 
-			batchPromises.forEach(p => {
-				p.finally(() => {
+			const progressPromises = batchPromises.map(p =>
+				p.catch(() => {}).finally(() => {
 					completed++
 					progressBar.value = completed
 					progressText.textContent = `${completed} / ${total} servers tested`
-				})
-			})
+				}),
+			)
 
-			await Promise.all(batchPromises)
+			await Promise.all(progressPromises)
 
 			if (abortController.signal.aborted) break
 		}
 	} catch (err) {
-		if (!abortController.signal.aborted) {
+		if (err.name !== 'AbortError') {
 			console.error('Test error:', err)
 		}
 	} finally {
@@ -509,7 +518,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 })
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-	const headers = ['Server URL', 'Network Latency (ms)', 'NO CORS', 'Status']
+	const headers = ['Server URL', 'Network Latency (ms)', 'DNS Works', 'Status']
 	const rows = testResults.map(r => {
 		if (r.error) {
 			return `"${r.url.replace(/"/g, '""')}",,,"${r.error.replace(/"/g, '""')}"`
@@ -537,4 +546,57 @@ document.getElementById('toggleSettingsBtn').addEventListener('click', () => {
 	}
 })
 
+document.getElementById('toggleAboutBtn').addEventListener('click', () => {
+	const panel = document.getElementById('aboutPanel')
+	const btn = document.getElementById('toggleAboutBtn')
+	const isHidden = panel.classList.contains('hidden')
+
+	if (isHidden) {
+		panel.classList.remove('hidden')
+		btn.innerHTML = '<span class="material-symbols-outlined">close</span> Close'
+	} else {
+		panel.classList.add('hidden')
+		btn.innerHTML = '<span class="material-symbols-outlined">info</span> About'
+	}
+})
+
+function getEffectiveTheme() {
+	const saved = document.documentElement.dataset.theme
+	if (saved === 'light' || saved === 'dark') return saved
+	return window.matchMedia('(prefers-color-scheme: dark)').matches
+		? 'dark'
+		: 'light'
+}
+
+function updateThemeButton() {
+	const btn = document.getElementById('themeBtn')
+	const icon = btn.querySelector('.material-symbols-outlined')
+	// show the theme the button will switch to
+	icon.textContent = getEffectiveTheme() === 'dark' ? 'light_mode' : 'dark_mode'
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+	const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark'
+	document.documentElement.dataset.theme = next
+	try {
+		localStorage.setItem('theme', next)
+	} catch (e) {}
+	updateThemeButton()
+})
+
+// keep the icon in sync while the user hasn't made an explicit choice
+window
+	.matchMedia('(prefers-color-scheme: dark)')
+	.addEventListener('change', () => {
+		if (!document.documentElement.dataset.theme) updateThemeButton()
+	})
+
+updateThemeButton()
+
 init().catch(console.error)
+
+if ('serviceWorker' in navigator) {
+	window.addEventListener('load', () => {
+		navigator.serviceWorker.register('sw.js').catch(console.error)
+	})
+}

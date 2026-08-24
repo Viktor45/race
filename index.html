@@ -20,6 +20,8 @@
 	<link rel="stylesheet"
 		href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 
+	<!-- applies the saved theme before first paint (CSP forbids inline scripts) -->
+	<script src="src/theme.js"></script>
 	<link rel="stylesheet" href="src/style.css" />
 </head>
 
@@ -36,6 +38,28 @@
 				<span class="material-symbols-outlined">settings</span>
 				Settings
 			</button>
+			<button id="toggleAboutBtn" class="about-btn">
+				<span class="material-symbols-outlined">info</span>
+				About
+			</button>
+			<button id="themeBtn" class="theme-btn" title="Switch theme" aria-label="Switch theme">
+				<span class="material-symbols-outlined">dark_mode</span>
+			</button>
+		</div>
+
+		<div class="about-panel hidden" id="aboutPanel">
+			<h2>How to use</h2>
+			<ol>
+				<li>Click <strong>Start Test</strong> to measure latency of the built-in list of 200+ public DoH resolvers.</li>
+				<li>Optionally open <strong>Settings</strong> to load your own <code>servers.txt</code> (one DoH URL per line) or choose a domain to validate DNS resolution against.</li>
+				<li>Results are sorted by latency: 🟢 ≤ 50 ms, 🟡 ≤ 150 ms, 🔴 &gt; 150 ms. Hover over a value to see the DNS status.</li>
+				<li>Use <strong>Export CSV</strong> to save the results.</li>
+			</ol>
+			<p>
+				Everything runs locally in your browser — no data is sent anywhere.
+				Source code and documentation:
+				<a href="https://github.com/viktor45/race" target="_blank" rel="noopener">github.com/viktor45/race</a>
+			</p>
 		</div>
 
 		<div class="file-inputs hidden" id="settingsForm">
