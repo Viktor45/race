@@ -1,14 +1,20 @@
 // sw.js — must be served from the repository root so its scope covers the app
-const CACHE_NAME = 'doh-tester-v4'
+const CACHE_NAME = 'doh-tester-v7'
 const urlsToCache = [
 	'./',
-	'./index.html',
+	'index.html',
 	'src/style.css',
 	'src/script.js',
 	'src/theme.js',
+	'src/manifest.json',
 	'data/servers.txt',
 	'data/domains.txt',
-	'src/manifest.json',
+	'images/favicon.ico',
+	'images/favicon-32x32.png',
+	'images/favicon-16x16.png',
+	'images/apple-touch-icon.png',
+	'images/android-chrome-192x192.png',
+	'images/android-chrome-512x512.png',
 ]
 
 self.addEventListener('install', event => {
@@ -46,8 +52,15 @@ self.addEventListener('fetch', event => {
 		event.respondWith(
 			fetch(event.request)
 				.then(response => {
-					const copy = response.clone()
-					caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy))
+					// Only cache successful basic responses — caching 4xx/5xx would
+					// poison the offline fallback and silently degrade the
+					// resolver list to nothing until the next successful fetch.
+					if (response.ok && response.type === 'basic') {
+						const copy = response.clone()
+						caches
+							.open(CACHE_NAME)
+							.then(cache => cache.put(event.request, copy))
+					}
 					return response
 				})
 				.catch(() => caches.match(event.request)),
@@ -58,6 +71,10 @@ self.addEventListener('fetch', event => {
 	event.respondWith(
 		caches
 			.match(event.request)
-			.then(response => response || fetch(event.request)),
+			.then(response => response || fetch(event.request))
+			// If we're offline AND the request isn't cached, fall back to the
+			// app shell so SPA-style same-origin navigations don't surface the
+			// browser's connection-error page.
+			.catch(() => caches.match('./')),
 	)
 })

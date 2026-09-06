@@ -9,13 +9,14 @@
 
 	<!-- Content Security Policy: restrict sources but allow external DoH connections -->
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'self'; connect-src *; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self';" />
+		content="default-src 'self'; connect-src *; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; worker-src 'self'; manifest-src 'self';" />
 	<link rel="manifest" href="src/manifest.json" />
 	<link rel="apple-touch-icon" href="images/apple-touch-icon.png" />
 	<link rel="icon" type="image/x-icon" href="images/favicon.ico">
 	<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
 	<link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
 	<meta name="theme-color" content="#3b82f6" />
+	<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#60a5fa" />
 
 	<link rel="stylesheet"
 		href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
@@ -35,7 +36,7 @@
 			<div class="header-utils">
 				<span id="offlineBadge" class="offline-badge hidden" role="status">Offline</span>
 				<button id="installBtn" class="install-btn hidden">
-					<span class="material-symbols-outlined">download</span>
+					<span class="material-symbols-outlined" aria-hidden="true">download</span>
 					Install
 				</button>
 				<button id="themeBtn" class="theme-btn" title="Switch theme" aria-label="Switch theme">
@@ -43,38 +44,40 @@
 				</button>
 			</div>
 		</header>
-		<noscript>You need to enable JavaScript to run this app.</noscript>
+		<noscript>
+			<div class="noscript-banner">This app requires JavaScript to run. All processing happens locally in your browser.</div>
+		</noscript>
 
-		<div class="action-bar">
-			<div class="action-group">
-				<button id="startBtn">
-					<span class="material-symbols-outlined">play_arrow</span>
-					Start Test
-				</button>
-				<button id="cancelBtn" class="hidden">
-					<span class="material-symbols-outlined">close</span>
-					Cancel
-				</button>
-				<button id="exportBtn" class="hidden">
-					<span class="material-symbols-outlined">download</span>
-					Export CSV
-				</button>
-				<button id="shareBtn" class="hidden">
-					<span class="material-symbols-outlined">share</span>
-					Share
-				</button>
+			<div class="action-bar">
+				<div class="action-group">
+					<button id="startBtn" aria-label="Start test">
+						<span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+						Start Test
+					</button>
+					<button id="cancelBtn" class="hidden" aria-label="Cancel test">
+						<span class="material-symbols-outlined" aria-hidden="true">close</span>
+						Cancel
+					</button>
+					<button id="exportBtn" class="hidden" aria-label="Export results as CSV">
+						<span class="material-symbols-outlined" aria-hidden="true">download</span>
+						Export CSV
+					</button>
+					<button id="shareBtn" class="hidden" aria-label="Share results">
+						<span class="material-symbols-outlined" aria-hidden="true">share</span>
+						Share
+					</button>
+				</div>
+				<div class="action-group">
+					<button id="toggleSettingsBtn" class="settings-btn" aria-label="Toggle settings panel">
+						<span class="material-symbols-outlined" aria-hidden="true">settings</span>
+						Settings
+					</button>
+					<button id="toggleAboutBtn" class="about-btn" aria-label="Toggle about panel">
+						<span class="material-symbols-outlined" aria-hidden="true">info</span>
+						About
+					</button>
+				</div>
 			</div>
-			<div class="action-group">
-				<button id="toggleSettingsBtn" class="settings-btn">
-					<span class="material-symbols-outlined">settings</span>
-					Settings
-				</button>
-				<button id="toggleAboutBtn" class="about-btn">
-					<span class="material-symbols-outlined">info</span>
-					About
-				</button>
-			</div>
-		</div>
 
 		<div class="about-panel hidden" id="aboutPanel">
 			<h2>How to use</h2>
@@ -110,8 +113,9 @@
 		</div>
 
 		<div class="progress-group hidden">
-			<progress id="progressBar" value="0" max="100"></progress>
-			<div id="progressText" aria-live="polite">0 / 0 servers tested</div>
+			<progress id="progressBar" value="0" max="100" aria-label="Test progress"></progress>
+			<div id="progressText" aria-live="off">0 / 0 servers tested</div>
+			<div id="testStatus" class="sr-only" role="status" aria-live="polite"></div>
 		</div>
 
 		<div id="results" class="hidden">
@@ -137,18 +141,20 @@
 			</div>
 
 			<div class="results-toolbar">
-				<div class="chips" id="filterChips">
-					<button class="chip active" data-filter="all">All</button>
-					<button class="chip" data-filter="fast"><span class="dot dot-fast"></span>≤ 50 ms</button>
-					<button class="chip" data-filter="medium"><span class="dot dot-medium"></span>≤ 150 ms</button>
-					<button class="chip" data-filter="slow"><span class="dot dot-slow"></span>&gt; 150 ms</button>
-					<button class="chip" data-filter="error"><span class="dot dot-error"></span>Failed</button>
+				<div class="chips" id="filterChips" role="group" aria-label="Filter results">
+					<button class="chip active" data-filter="all" aria-pressed="true">All <span class="chip-count" aria-hidden="true">0</span></button>
+					<button class="chip" data-filter="fast" aria-pressed="false"><span class="dot dot-fast" aria-hidden="true"></span>≤ 50 ms <span class="chip-count" aria-hidden="true">0</span></button>
+					<button class="chip" data-filter="medium" aria-pressed="false"><span class="dot dot-medium" aria-hidden="true"></span>≤ 150 ms <span class="chip-count" aria-hidden="true">0</span></button>
+					<button class="chip" data-filter="slow" aria-pressed="false"><span class="dot dot-slow" aria-hidden="true"></span>&gt; 150 ms <span class="chip-count" aria-hidden="true">0</span></button>
+					<button class="chip" data-filter="error" aria-pressed="false"><span class="dot dot-error" aria-hidden="true"></span>Failed <span class="chip-count" aria-hidden="true">0</span></button>
 				</div>
 				<input type="search" id="filterSearch" placeholder="Filter by URL" aria-label="Filter results by URL" />
 			</div>
 
 			<ul id="resultsList" class="results-list"></ul>
 		</div>
+
+		<div class="toast hidden" id="statusToast" role="status" aria-live="polite"></div>
 
 		<div class="toast hidden" id="updateToast" role="status">
 			<span>Update available. Reload to get the latest version.</span>

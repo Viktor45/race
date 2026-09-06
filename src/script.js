@@ -16,18 +16,65 @@ function parseList(text) {
 
 function isValidUrl(str) {
 	try {
-		new URL(str)
-		return true
+		const u = new URL(str)
+		return u.protocol === 'http:' || u.protocol === 'https:'
 	} catch {
 		return false
 	}
 }
 
+// Normalize and validate a user-supplied domain for a DNS query. Returns
+// the lowercased ASCII domain, or null if the input is unusable. Strips
+// scheme, path, port, and a single trailing dot; rejects domains with
+// overlong labels, bad characters, or total length > 253 bytes.
+function normalizeDomain(input) {
+	if (typeof input !== 'string') return null
+	let s = input.trim().toLowerCase()
+	if (!s) return null
+
+	// If a URL was pasted, drop the scheme/authority/path parts.
+	if (s.includes('://')) {
+		try {
+			const u = new URL(s.startsWith('http') ? s : 'http://' + s)
+			s = u.hostname
+		} catch {
+			return null
+		}
+	}
+
+	// Strip a single trailing dot (FQDN form).
+	if (s.endsWith('.')) s = s.slice(0, -1)
+	if (!s) return null
+
+	if (s.length > 253) return null
+
+	const labels = s.split('.')
+	// Allow letters, digits, hyphens, and xn-- punycode labels (IDN).
+	const labelRe = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$|^xn--[a-z0-9-]+$/i
+	for (const label of labels) {
+		if (label.length === 0 || label.length > 63) return null
+		if (!labelRe.test(label)) return null
+	}
+	return s
+}
+
+// Build a minimal RFC 8484 query packet for an A record. The caller is
+// expected to have already validated the domain (see normalizeDomain), but
+// we still defend per-label: cap each UTF-8 label at 63 bytes (DNS limit) and
+// skip empty labels that would otherwise produce a malformed packet (e.g.
+// "example.com." trailing dot, or "https://example.com" with empty parts).
 function makeDnsPacket(domain) {
-	const labels = domain.toLowerCase().split('.')
+	const labels = domain
+		.toLowerCase()
+		.split('.')
+		.filter(l => l.length > 0)
 	let qname = []
 	for (const label of labels) {
-		const bytes = new TextEncoder().encode(label)
+		const fullBytes = new TextEncoder().encode(label)
+		// DNS labels are capped at 63 octets; truncate rather than let the
+		// length-prefix byte wrap mod 256 (which would silently produce a
+		// FORMERR-causing packet).
+		const bytes = fullBytes.length > 63 ? fullBytes.slice(0, 63) : fullBytes
 		qname.push(bytes.length, ...bytes)
 	}
 	qname.push(0)
@@ -56,11 +103,9 @@ function fetchWithTimeout(url, options, timeout = TIMEOUT_MS, signal = null) {
 
 	// Forward timeout abort as well
 	const timeoutId = setTimeout(() => timeoutController.abort(), timeout)
-	if (timeoutController.signal.aborted) forwardAbort()
-	else
-		timeoutController.signal.addEventListener('abort', forwardAbort, {
-			once: true,
-		})
+	timeoutController.signal.addEventListener('abort', forwardAbort, {
+		once: true,
+	})
 
 	return fetch(url, { ...options, signal: finalController.signal }).finally(
 		() => {
@@ -86,40 +131,57 @@ async function testProvider(provider, signal = null) {
 	// but it resolves whenever the server responds at all, which proves
 	// reachability and gives us the round-trip time. So servers that simply
 	// don't allow CORS get a latency in ms instead of being rejected.
-	// HEAD first (lighter), GET as a fallback for servers that refuse HEAD.
+	// Race HEAD and GET in parallel so the worst-case probe time is TIMEOUT_MS
+	// instead of 2×TIMEOUT_MS for servers that silently swallow one method.
 	const attempts = [
 		{ method: 'HEAD', mode: 'no-cors' },
 		{ method: 'GET', mode: 'no-cors' },
 	]
 
-	for (const options of attempts) {
-		const start = performance.now()
-		try {
-			await fetchWithTimeout(provider.url, options, TIMEOUT_MS, signal)
-			connectivityTime = performance.now() - start
-			break
-		} catch (err) {
-			if (signal && signal.aborted) throw err
-		}
+	const probeStart = performance.now()
+	try {
+		// Promise.any resolves on the first success; if both reject (or are
+		// aborted) the aggregated error propagates after TIMEOUT_MS.
+		const winner = await Promise.any(
+			attempts.map(options =>
+				fetchWithTimeout(provider.url, options, TIMEOUT_MS, signal),
+			),
+		)
+		connectivityTime = performance.now() - probeStart
+		// winner is unused — the resolved promise just tells us one attempt
+		// completed; the elapsed wall time is what we report.
+		void winner
+	} catch (err) {
+		if (signal && signal.aborted) throw err
+		// Both attempts failed (or timed out): leave connectivityTime null so
+		// the caller reports "Network unreachable".
 	}
 
 	if (connectivityTime === null) {
 		return { url: provider.url, error: 'Network unreachable' }
 	}
 
+	// The settings UI accepts an uploaded domains.txt (one per line) but only
+	// the first entry is tested per provider. This is intentional — the app
+	// measures per-resolver reachability & latency, not per-domain
+	// resolution — and keeps the run time bounded. Uploaded entries are
+	// normalized and exposed via currentDomains for any future multi-domain
+	// mode; until then only [0] is used.
 	const testDomain = currentDomains[0] || 'example.com'
 	try {
 		if (provider.type === 'json') {
-			const url = `${provider.url}?name=${encodeURIComponent(testDomain)}&type=A`
-			const res = await fetchWithTimeout(url, {}, TIMEOUT_MS, signal)
-			const contentType = (
-				res.headers.get('content-type') || ''
-			).toLowerCase()
+			const url = new URL(provider.url)
+			url.searchParams.set('name', testDomain)
+			url.searchParams.set('type', 'A')
+			const res = await fetchWithTimeout(url.toString(), {}, TIMEOUT_MS, signal)
+			const contentType = (res.headers.get('content-type') || '').toLowerCase()
 			if (!contentType.includes('application/json'))
 				throw new Error('Invalid JSON')
 			if (!res.ok) throw new Error(`HTTP ${res.status}`)
 			const data = await res.json()
 			if (data.Status !== 0) throw new Error('DNS error')
+			if (!Array.isArray(data.Answer) || data.Answer.length === 0)
+				throw new Error('Empty answer')
 			dnsWorks = true
 		} else {
 			const packet = makeDnsPacket(testDomain)
@@ -133,9 +195,7 @@ async function testProvider(provider, signal = null) {
 				TIMEOUT_MS,
 				signal,
 			)
-			const contentType = (
-				res.headers.get('content-type') || ''
-			).toLowerCase()
+			const contentType = (res.headers.get('content-type') || '').toLowerCase()
 			if (!contentType.includes('application/dns-message'))
 				throw new Error('Invalid DoH')
 			if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -143,6 +203,7 @@ async function testProvider(provider, signal = null) {
 		}
 	} catch (err) {
 		if (signal && signal.aborted) throw err
+		if (err && err.name === 'AbortError') throw err
 		dnsWorks = false
 	}
 
@@ -158,14 +219,34 @@ async function testProvider(provider, signal = null) {
 async function loadBuiltinServers() {
 	try {
 		const text = await fetch('data/servers.txt').then(r => r.text())
-		const urls = parseList(text).filter(isValidUrl)
+		const urls = Array.from(new Set(parseList(text).filter(isValidUrl)))
 		return urls.map(url => ({
 			url,
 			type: url.includes('/resolve') ? 'json' : 'doh',
 		}))
 	} catch {
+		// Surface the failure so the user knows why the list shrunk to one entry.
+		showStatus('Could not load the built-in server list — using a fallback.')
 		return [{ url: 'https://1.1.1.1/dns-query', type: 'doh' }]
 	}
+}
+
+// Show a non-fatal status message in #statusToast. Defined early because
+// loadBuiltinServers uses it during init.
+function showStatus(message) {
+	const toast = document.getElementById('statusToast')
+	if (!toast) return
+	// Rewrite the text *after* unhiding so screen readers announce it.
+	toast.textContent = message
+	toast.classList.remove('hidden')
+}
+
+// Announce a milestone to screen readers via the polite #testStatus region.
+// The visual progress bar updates every server; this only fires at ≤10%
+// intervals so assistive tech doesn't get flooded.
+function setTestStatus(message) {
+	const el = document.getElementById('testStatus')
+	if (el) el.textContent = message
 }
 
 async function init() {
@@ -173,38 +254,86 @@ async function init() {
 	const startBtn = document.getElementById('startBtn')
 	startBtn.disabled = false
 	startBtn.innerHTML =
-		'<span class="material-symbols-outlined">play_arrow</span> Start Test'
+		'<span class="material-symbols-outlined" aria-hidden="true">play_arrow</span> Start Test'
 	document.getElementById('singleDomain').value = 'example.com'
 }
 
 document.getElementById('singleDomain').addEventListener('input', e => {
-	const domain = e.target.value.trim()
-	customDomains = domain ? [domain] : null
+	const raw = e.target.value.trim()
+	if (!raw) {
+		customDomains = null
+		return
+	}
+	const normalized = normalizeDomain(raw)
+	if (!normalized) {
+		// Don't clobber customDomains if the user is mid-typing something
+		// we can't yet parse, but still tell them.
+		showStatus('Invalid domain — enter something like example.com')
+		return
+	}
+	customDomains = [normalized]
 })
 
 document.getElementById('domainFile').addEventListener('change', async e => {
 	const file = e.target.files[0]
-	if (file) {
-		const text = await file.text()
-		const domains = parseList(text).filter(d => d.length > 0)
-		if (domains.length > 0) {
-			customDomains = domains
-			document.getElementById('singleDomain').value = domains[0] || ''
+	if (!file) return
+	try {
+		if (file.size > 5_000_000) {
+			showStatus('Domain file is too large (limit 5 MB).')
+			return
 		}
+		const text = await file.text()
+		const domains = parseList(text)
+			.map(normalizeDomain)
+			.filter(d => d !== null)
+		if (domains.length === 0) {
+			showStatus('No valid domains found in the uploaded file.')
+			return
+		}
+		customDomains = domains
+		document.getElementById('singleDomain').value = domains[0] || ''
+		showStatus(
+			domains.length === 1
+				? `Loaded domain: ${domains[0]}`
+				: `Loaded ${domains.length} domains (the first one is tested).`,
+		)
+	} catch (err) {
+		showStatus('Could not read the uploaded domains file.')
 	}
 })
 
 document.getElementById('serverFile').addEventListener('change', async e => {
 	const file = e.target.files[0]
-	if (file) {
-		const text = await file.text()
-		const urls = parseList(text).filter(isValidUrl)
-		if (urls.length > 0) {
-			currentServers = urls.map(url => ({
-				url,
-				type: url.includes('/resolve') ? 'json' : 'doh',
-			}))
+	if (!file) return
+	try {
+		if (file.size > 5_000_000) {
+			showStatus('Server file is too large (limit 5 MB).')
+			return
 		}
+		const text = await file.text()
+		const urls = Array.from(new Set(parseList(text).filter(isValidUrl)))
+		if (urls.length === 0) {
+			showStatus('No valid server URLs found in the uploaded file.')
+			return
+		}
+		currentServers = urls.map(url => ({
+			url,
+			type: url.includes('/resolve') ? 'json' : 'doh',
+		}))
+		showStatus(`Loaded ${currentServers.length} servers from file.`)
+		// A previous run's rows no longer match the new list — clear them so
+		// the UI never shows results for a list that isn't loaded. If a test
+		// is mid-run, leave it alone; the next Start resets everything.
+		const isRunning = !document
+			.querySelector('.progress-group')
+			.classList.contains('hidden')
+		if (!isRunning) {
+			testResults = []
+			document.getElementById('resultsList').innerHTML = ''
+			document.getElementById('results').classList.add('hidden')
+		}
+	} catch (err) {
+		showStatus('Could not read the uploaded server file.')
 	}
 })
 
@@ -234,6 +363,12 @@ function renderInitialResults() {
 
 		const avgEl = document.createElement('div')
 		avgEl.className = 'server-avg skeleton-text'
+		// Screen readers need a label here — the visual shimmer is invisible
+		// to them, and under prefers-reduced-motion the animation is gone too.
+		const pendingLabel = document.createElement('span')
+		pendingLabel.className = 'sr-only'
+		pendingLabel.textContent = 'Testing'
+		avgEl.appendChild(pendingLabel)
 
 		header.appendChild(urlEl)
 		header.appendChild(avgEl)
@@ -265,19 +400,24 @@ function renderResultItem(result) {
 	const urlEl = document.createElement('div')
 	urlEl.className = 'server-url'
 	urlEl.textContent = result.url
-	urlEl.title = result.url
+	// urlEl.title intentionally omitted — it duplicated textContent and
+	// triggered double-announcement in some screen readers.
 
 	const avgEl = document.createElement('div')
 	avgEl.className = 'server-avg'
 	if (result.error) {
 		avgEl.classList.add('error')
 		avgEl.textContent = result.error
+		avgEl.setAttribute('aria-label', `Error: ${result.error}`)
 	} else {
 		const mainTime = result.avg
-		avgEl.textContent = `${mainTime.toFixed(1)} ms`
-		const dnsStatus = result.dnsWorks ? '✅ DNS OK' : '⚠️ DNS failed'
-		const titleText = `${dnsStatus}\nNetwork: ${mainTime.toFixed(1)} ms`
-		avgEl.title = titleText
+		const formatted = `${mainTime.toFixed(1)} ms`
+		avgEl.textContent = formatted
+		const dnsLabel = result.dnsWorks ? 'DNS OK' : 'DNS failed'
+		avgEl.setAttribute('aria-label', `${formatted}, ${dnsLabel}`)
+		avgEl.title = result.dnsWorks
+			? `✅ DNS OK\nNetwork: ${formatted}`
+			: `⚠️ DNS failed\nNetwork: ${formatted}`
 	}
 
 	header.appendChild(urlEl)
@@ -373,8 +513,10 @@ function sortResults() {
 	items.sort((a, b) => {
 		const aMin = Number.parseFloat(a.dataset.min)
 		const bMin = Number.parseFloat(b.dataset.min)
-		return (Number.isFinite(aMin) ? aMin : Infinity) -
+		return (
+			(Number.isFinite(aMin) ? aMin : Infinity) -
 			(Number.isFinite(bMin) ? bMin : Infinity)
+		)
 	})
 
 	resultsList.innerHTML = ''
@@ -445,15 +587,46 @@ let activeFilter = 'all'
 let filterText = ''
 
 function applyFilter() {
-	const items = document.getElementById('resultsList').children
+	const list = document.getElementById('resultsList')
+	const items = list.children
+	const counts = { all: 0, fast: 0, medium: 0, slow: 0, error: 0 }
+	let visible = 0
+
+	// Drop any previous empty-state placeholder before re-evaluating.
+	const prev = list.querySelector('.empty-state')
+	if (prev) prev.remove()
+
 	for (const li of items) {
+		if (li.classList.contains('empty-state')) continue
 		const speed = li.dataset.speed || ''
-		let visible = activeFilter === 'all' || speed === activeFilter
-		if (visible && filterText) {
+		if (counts[speed] !== undefined) counts[speed]++
+		counts.all++
+		const matchFilter = activeFilter === 'all' || speed === activeFilter
+		let show = matchFilter
+		if (show && filterText) {
 			const url = li.querySelector('.server-url')?.textContent || ''
-			if (!url.toLowerCase().includes(filterText)) visible = false
+			if (!url.toLowerCase().includes(filterText)) show = false
 		}
-		li.classList.toggle('hidden', !visible)
+		li.classList.toggle('hidden', !show)
+		if (show) visible++
+	}
+
+	// If the active filter hides everything, show an empty-state row so the
+	// page doesn't look broken.
+	if (items.length > 0 && visible === 0) {
+		const li = document.createElement('li')
+		li.className = 'empty-state'
+		li.textContent = 'No servers match your filter.'
+		list.appendChild(li)
+	}
+
+	// Update the per-chip counts so the user can see what's available.
+	for (const chip of document.querySelectorAll('#filterChips .chip')) {
+		const f = chip.dataset.filter
+		const n = counts[f] ?? 0
+		chip
+			.querySelector('.chip-count')
+			?.replaceChildren(document.createTextNode(String(n)))
 	}
 }
 
@@ -480,9 +653,27 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 	const resultsList = document.getElementById('resultsList')
 	const resultsEl = document.getElementById('results')
 
-	const domainsToUse = customDomains || [
-		document.getElementById('singleDomain').value.trim() || 'example.com',
-	]
+	// Resolve the domain list with a fallback to the single-domain input,
+	// then validate it. A malformed single-domain entry falls back to the
+	// built-in example so the test still runs (better than blocking on a
+	// typo) but the user sees a warning.
+	const rawSingle = document.getElementById('singleDomain').value.trim()
+	let domainsToUse
+	if (customDomains && customDomains.length > 0) {
+		domainsToUse = customDomains
+	} else {
+		const normalized = rawSingle ? normalizeDomain(rawSingle) : null
+		if (!normalized) {
+			showStatus(
+				rawSingle
+					? `"${rawSingle}" is not a valid domain — using example.com instead.`
+					: 'Using example.com (no domain entered).',
+			)
+			domainsToUse = ['example.com']
+		} else {
+			domainsToUse = [normalized]
+		}
+	}
 	currentDomains = domainsToUse
 
 	testResults = []
@@ -498,28 +689,71 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 	filterText = ''
 	document.getElementById('filterSearch').value = ''
 	for (const c of document.querySelectorAll('#filterChips .chip')) {
-		c.classList.toggle('active', c.dataset.filter === 'all')
+		const isActive = c.dataset.filter === 'all'
+		c.classList.toggle('active', isActive)
+		c.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+		c.querySelector('.chip-count')?.replaceChildren(
+			document.createTextNode('0'),
+		)
 	}
 
 	startBtn.classList.add('hidden')
 	cancelBtn.classList.remove('hidden')
+	// Move keyboard focus to the now-visible Cancel button so screen-reader and
+	// keyboard users don't get dumped back to <body> when Start hides itself.
+	cancelBtn.focus()
 	progressGroup.classList.remove('hidden')
 
 	const total = currentServers.length
-	progressBar.max = total
+	// <progress>.max must be > 0 (some UAs clamp or reject 0). The visual bar
+	// is meaningless for an empty run anyway; we surface that case below.
+	progressBar.max = total > 0 ? total : 1
 	progressBar.value = 0
 	progressText.textContent = `0 / ${total} servers tested`
+	setTestStatus(`Starting test of ${total} servers`)
+	let lastAnnouncedPct = -10
 
 	abortController = new AbortController()
+	// Capture locally so a Cancel-then-Start sequence cannot cross-wire two
+	// runs through the module-level `abortController` reassignment.
+	const controller = abortController
 
-	cancelBtn.onclick = () => {
-		abortController.abort()
-		resetUI()
-		exportBtn.classList.add('hidden')
-		resultsEl.classList.add('hidden')
-		resultsList.innerHTML = ''
-		testResults = []
+	// Two-tap cancel: first click arms it (text flips to "Confirm?"),
+	// second click within 3 s aborts and discards the run. Avoids losing
+	// partial results to an accidental click on the now-focused Cancel
+	// button while still being keyboard-/screen-reader-friendly.
+	let cancelArmed = false
+	let cancelArmTimer = null
+	const armCancel = () => {
+		if (cancelArmed) {
+			clearTimeout(cancelArmTimer)
+			cancelArmed = false
+			cancelBtn.innerHTML =
+				'<span class="material-symbols-outlined" aria-hidden="true">close</span> Cancel'
+			cancelBtn.setAttribute('aria-label', 'Cancel test')
+			controller.abort()
+			resetUI()
+			exportBtn.classList.add('hidden')
+			resultsEl.classList.add('hidden')
+			resultsList.innerHTML = ''
+			testResults = []
+			return
+		}
+		cancelArmed = true
+		cancelBtn.innerHTML =
+			'<span class="material-symbols-outlined" aria-hidden="true">check</span> Confirm?'
+		cancelBtn.setAttribute(
+			'aria-label',
+			'Confirm cancel — press again to abort the run',
+		)
+		cancelArmTimer = setTimeout(() => {
+			cancelArmed = false
+			cancelBtn.innerHTML =
+				'<span class="material-symbols-outlined" aria-hidden="true">close</span> Cancel'
+			cancelBtn.setAttribute('aria-label', 'Cancel test')
+		}, 3000)
 	}
+	cancelBtn.onclick = armCancel
 
 	let completed = 0
 	const serverBatches = []
@@ -530,9 +764,9 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 	try {
 		for (const batch of serverBatches) {
 			const batchPromises = batch.map(provider =>
-				testProvider(provider, abortController.signal)
+				testProvider(provider, controller.signal)
 					.then(result => {
-						if (abortController.signal.aborted) return result
+						if (controller.signal.aborted) return result
 						testResults.push(result)
 						insertSortedResult(result)
 						renderBars()
@@ -542,7 +776,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 					})
 					.catch(err => {
 						if (err.name === 'AbortError') throw err
-						if (abortController.signal.aborted) return null
+						if (controller.signal.aborted) return null
 						const result = { url: provider.url, error: 'Test failed' }
 						testResults.push(result)
 						insertSortedResult(result)
@@ -554,23 +788,44 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 			)
 
 			const progressPromises = batchPromises.map(p =>
-				p.catch(() => {}).finally(() => {
-					completed++
-					progressBar.value = completed
-					progressText.textContent = `${completed} / ${total} servers tested`
-				}),
+				p
+					.catch(() => {})
+					.finally(() => {
+						completed++
+						progressBar.value = completed
+						progressText.textContent = `${completed} / ${total} servers tested`
+						// Throttle screen-reader announcements to ~10% steps so a
+						// 223-server run doesn't queue 223 polite updates.
+						const pct = total > 0 ? Math.floor((completed / total) * 100) : 100
+						if (pct - lastAnnouncedPct >= 10) {
+							lastAnnouncedPct = pct
+							setTestStatus(
+								`${pct}% complete — ${completed} of ${total} servers tested`,
+							)
+						}
+					}),
 			)
 
 			await Promise.all(progressPromises)
 
-			if (abortController.signal.aborted) break
+			// Re-render derived views once per batch instead of once per
+			// result — renderBars and applyFilter both iterate every row.
+			renderBars()
+			updateSummary()
+			applyFilter()
+
+			if (controller.signal.aborted) break
 		}
 	} catch (err) {
 		if (err.name !== 'AbortError') {
 			console.error('Test error:', err)
 		}
 	} finally {
-		if (!abortController.signal.aborted) {
+		// Always clear any pending arm-state so a click mid-run that didn't
+		// land in time doesn't leave the button stuck on "Confirm?".
+		clearTimeout(cancelArmTimer)
+		cancelArmed = false
+		if (!controller.signal.aborted) {
 			finalizePendingTests()
 			sortResults()
 			renderBars()
@@ -580,6 +835,21 @@ document.getElementById('startBtn').addEventListener('click', async () => {
 			if (navigator.share)
 				document.getElementById('shareBtn').classList.remove('hidden')
 			resetUI()
+			// Hand focus back to Start so the keyboard user can re-run.
+			startBtn.focus()
+			// One final screen-reader announcement summarising the run.
+			const okCount = testResults.filter(r => !r.error).length
+			const fastest =
+				okCount > 0
+					? `${testResults
+							.filter(r => !r.error)
+							.map(r => r.avg)
+							.sort((a, b) => a - b)[0]
+							.toFixed(1)} ms`
+					: 'no successful responses'
+			setTestStatus(
+				`Test complete: ${okCount} of ${testResults.length} resolvers responded. Fastest: ${fastest}.`,
+			)
 		}
 	}
 })
@@ -591,14 +861,19 @@ function buildCSV() {
 			return `"${r.url.replace(/"/g, '""')}",,,"${r.error.replace(/"/g, '""')}"`
 		} else {
 			const dnsStatus = r.dnsWorks ? 'Yes' : 'No'
-			return `"${r.url.replace(/"/g, '""')}",${r.avg.toFixed(2)},${dnsStatus},OK`
+			return `"${r.url.replace(/"/g, '""')}",${r.avg.toFixed(2)},${dnsStatus},"OK"`
 		}
 	})
 	return [headers.join(','), ...rows].join('\n')
 }
 
 document.getElementById('exportBtn').addEventListener('click', () => {
-	downloadCSV('doh-latency-results.csv', buildCSV())
+	try {
+		downloadCSV('doh-latency-results.csv', buildCSV())
+	} catch (err) {
+		// Blob URL / anchor download can fail on locked-down browsers.
+		showStatus('Could not start the CSV download in this browser.')
+	}
 })
 
 document.getElementById('shareBtn').addEventListener('click', async () => {
@@ -625,11 +900,12 @@ document.getElementById('toggleSettingsBtn').addEventListener('click', () => {
 
 	if (isHidden) {
 		form.classList.remove('hidden')
-		btn.innerHTML = '<span class="material-symbols-outlined">close</span> Close'
+		btn.innerHTML =
+			'<span class="material-symbols-outlined" aria-hidden="true">close</span> Close'
 	} else {
 		form.classList.add('hidden')
 		btn.innerHTML =
-			'<span class="material-symbols-outlined">settings</span> Settings'
+			'<span class="material-symbols-outlined" aria-hidden="true">settings</span> Settings'
 	}
 })
 
@@ -640,10 +916,12 @@ document.getElementById('toggleAboutBtn').addEventListener('click', () => {
 
 	if (isHidden) {
 		panel.classList.remove('hidden')
-		btn.innerHTML = '<span class="material-symbols-outlined">close</span> Close'
+		btn.innerHTML =
+			'<span class="material-symbols-outlined" aria-hidden="true">close</span> Close'
 	} else {
 		panel.classList.add('hidden')
-		btn.innerHTML = '<span class="material-symbols-outlined">info</span> About'
+		btn.innerHTML =
+			'<span class="material-symbols-outlined" aria-hidden="true">info</span> About'
 	}
 })
 
@@ -652,7 +930,9 @@ document.getElementById('filterChips').addEventListener('click', e => {
 	if (!chip) return
 	activeFilter = chip.dataset.filter
 	for (const c of document.querySelectorAll('#filterChips .chip')) {
-		c.classList.toggle('active', c === chip)
+		const isActive = c === chip
+		c.classList.toggle('active', isActive)
+		c.setAttribute('aria-pressed', isActive ? 'true' : 'false')
 	}
 	applyFilter()
 })
@@ -735,6 +1015,9 @@ updateOnlineStatus()
 if ('serviceWorker' in navigator) {
 	let reloadedForUpdate = false
 	navigator.serviceWorker.addEventListener('controllerchange', () => {
+		// First install: there's no prior controller, so `claim()` firing this
+		// event would otherwise trigger a spurious reload on every fresh visit.
+		if (!navigator.serviceWorker.controller) return
 		if (reloadedForUpdate) return
 		reloadedForUpdate = true
 		window.location.reload()
@@ -744,25 +1027,48 @@ if ('serviceWorker' in navigator) {
 		navigator.serviceWorker
 			.register('sw.js')
 			.then(reg => {
+				const showUpdateToast = () => {
+					const toast = document.getElementById('updateToast')
+					if (!toast) return
+					// Rewrite the message after unhiding so screen readers
+					// announce it (most readers don't fire on a display
+					// toggle of pre-existing text).
+					toast.querySelector('span').textContent =
+						'Update available. Reload to get the latest version.'
+					toast.classList.remove('hidden')
+				}
+
 				reg.addEventListener('updatefound', () => {
 					const newWorker = reg.installing
 					if (!newWorker) return
 					newWorker.addEventListener('statechange', () => {
 						const hasActiveController = !!navigator.serviceWorker.controller
 						if (newWorker.state === 'installed' && hasActiveController) {
-							document
-								.getElementById('updateToast')
-								.classList.remove('hidden')
+							showUpdateToast()
 						}
 					})
 				})
+
+				// Proactively check for updates shortly after load so the toast
+				// surfaces even when the user keeps the tab open across days.
+				setTimeout(() => reg.update().catch(() => {}), 30_000)
 			})
 			.catch(console.error)
 	})
 }
 
-document.getElementById('updateReloadBtn').addEventListener('click', async () => {
-	if (!('serviceWorker' in navigator)) return
-	const reg = await navigator.serviceWorker.getRegistration()
-	if (reg && reg.waiting) reg.waiting.postMessage('skip-waiting')
-})
+document
+	.getElementById('updateReloadBtn')
+	.addEventListener('click', async () => {
+		if (!('serviceWorker' in navigator)) return
+		const reg = await navigator.serviceWorker.getRegistration()
+		const toast = document.getElementById('updateToast')
+		if (reg && reg.waiting) {
+			reg.waiting.postMessage('skip-waiting')
+		} else {
+			// Nothing to wait for — either already up-to-date or already taken
+			// over by an earlier controllerchange. Reload to be safe.
+			if (toast) toast.classList.add('hidden')
+			window.location.reload()
+		}
+	})
